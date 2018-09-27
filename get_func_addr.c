@@ -20,6 +20,7 @@ long get_maps_addr(pid_t pid)
 		return -1;
 	}
 	read(fd,buf,12);
+	close(fd);
 	printf("addr in vm 0x%s\n",buf);
 	return strtoll(buf,NULL,16);
 
@@ -44,6 +45,7 @@ long get_offset_func(char* proc_name,char* func_name)
 		return -1;
 	}
 	fread(read,sizeof(char),16,r);
+	fclose(r);
 	printf("offset of the function %s 0x%s\n",func_name,read);
 	return strtol(read,NULL,16);
 }
@@ -61,6 +63,7 @@ char* get_proc_name(pid_t pid)
 
 	fd = open(cmd,O_RDONLY);
 	read(fd,proc_name,128);
+	close(fd);
 	memcpy(proc_name,proc_name+2,strlen(proc_name));
 	return proc_name;
 
