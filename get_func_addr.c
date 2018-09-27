@@ -48,8 +48,26 @@ long get_offset_func(char* proc_name,char* func_name)
 	return strtol(read,NULL,16);
 }
 
-long long int get_func_addr(pid_t pid,char* proc_name, char* func_name)
+char* get_proc_name(pid_t pid)
 {
-	return get_maps_addr(pid) + get_offset_func(proc_name,func_name);
+	int fd;
+	char pid_c[6];
+	char cmd [26];
+	static char proc_name[128];
+	sprintf(pid_c,"%d",pid);
+	strcpy(cmd,"/proc/");
+	strcat(cmd,pid_c);
+	strcat(cmd,"/cmdline");
+
+	fd = open(cmd,O_RDONLY);
+	read(fd,proc_name,128);
+	memcpy(proc_name,proc_name+2,strlen(proc_name));
+	return proc_name;
+
+
 }
 
+long long int get_func_addr(pid_t pid, char* func_name)
+{
+	return get_maps_addr(pid) + get_offset_func(get_proc_name(pid),func_name);
+}
