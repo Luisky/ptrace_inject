@@ -13,6 +13,15 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <limits.h>
+#include <signal.h>
+#include <string.h>
+
+/*static void handler(int sig_no)
+{
+    printf("\n\n\tSignal %d caught\n\n\n", sig_no);
+
+    return;
+}*/
 
 int add_int(int a, int b)
 {
@@ -24,6 +33,11 @@ int main()
 {
     int a = 5;
     int b = 10;
+
+    /*struct sigaction sa;
+    memset (&sa, '\0', sizeof(sa));
+    sa.sa_handler = handler;
+    sigaction(SIGTRAP, &sa, NULL);*/
 
     while(true) {
 

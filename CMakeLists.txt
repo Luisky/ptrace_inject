@@ -3,5 +3,5 @@ project(SEL_TP C)
 
 set(CMAKE_C_STANDARD 99)
 
-add_executable(SEL_TP main.c)
+add_executable(SEL_TP main.c hotpatchor.h hotpatchor.c)
 add_executable(DECOY decoy.c)
