@@ -34,7 +34,7 @@ void init_ptrace_attach(pid_t pid)
 {
     int wstatus;
 
-    if ( ptrace(PTRACE_ATTACH, pid, 0, 0) == -1) {
+    if (ptrace(PTRACE_ATTACH, pid, 0, 0) == -1) {
         fprintf(stderr, "Ptrace failed\n"); //TODO: check errno
         exit(EXIT_FAILURE);
     }
@@ -77,6 +77,39 @@ void write_trap_at_addr(pid_t pid, char *path_mem, long long int func_addr)
     return;
 }
 
+void get_regs(pid_t pid, struct user_regs_struct * user_regs, long long int func_addr, unsigned long long int *opti_func_addr, char * path_mem)
+{
+    ptrace(PTRACE_GETREGS, pid, NULL, user_regs);
+    printf("REGS:\n rax: 0x%llx\n rip: 0x%llx \n\n", user_regs->rax, user_regs->rip);
+    user_regs->rax = *opti_func_addr;
+    printf("REGS:\n rax: 0x%llx\n rip: 0x%llx \n\n", user_regs->rax, user_regs->rip);
+    ptrace(PTRACE_SETREGS, pid, NULL, user_regs);
+
+    FILE *fp;
+    int wstatus;
+    size_t br;
+    uint8_t buf[3] = { (char)0xFF, (char)0xD0, (char)0xCC};
+
+    fp = fopen(path_mem, "w");
+    fseek(fp, user_regs->rip, SEEK_SET); // SUPER IMPORTANT
+
+    br = fwrite(buf, 1, 3, fp);
+    if (br == 0) perror("fwrite");
+    fclose(fp);
+    printf("%ld byte(s) written\n", br);
+
+    kill((int)pid, SIGCONT);
+
+    waitpid((int)pid, &wstatus, WNOHANG); // this stops the process
+    if (WIFSTOPPED(wstatus)) printf("process was stopped by signal number %d\n", WSTOPSIG(wstatus));
+
+    printf("SECOND TRAP");
+
+    waitpid((int)pid, &wstatus, WNOHANG); // this stops the process
+    if (WIFSTOPPED(wstatus)) printf("process was stopped by signal number %d\n", WSTOPSIG(wstatus));
+
+    return;
+}
 
 long get_maps_addr(pid_t pid)
 {

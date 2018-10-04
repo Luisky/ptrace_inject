@@ -11,6 +11,7 @@ int main(int argc, char **argv) {
 
     pid_t pid;
     char* func_name;
+    struct user_regs_struct user_regs;
 
     FILE *fp;
     char path_mem[64];
@@ -23,7 +24,16 @@ int main(int argc, char **argv) {
 
     init_hotpatchor(pid, func_name, path_mem, &func_addr);
     init_ptrace_attach(pid);
+
+    // BEGIN PROTO
+    long long int opti_func_addr = get_func_addr(pid, "opti_add_int");
+    printf("opti_func_addr 0x%llx\n", opti_func_addr);
+    // END PROTO
+
     write_trap_at_addr(pid, path_mem, func_addr);
+    get_regs(pid, &user_regs, func_addr, &opti_func_addr, path_mem);
+
+
 
     //__asm__("int3"); //0xCC
 

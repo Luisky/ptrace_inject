@@ -15,7 +15,7 @@
 #include <limits.h>
 #include <signal.h>
 #include <string.h>
-
+ 
 /*static void handler(int sig_no)
 {
     printf("\n\n\tSignal %d caught\n\n\n", sig_no);
@@ -29,8 +29,16 @@ int add_int(int a, int b)
     return a + b;
 }
 
+int opti_add_int(int a, int b)
+{
+    printf("YO LES POTES !\n");
+    //usleep(50000);
+    return a + b;
+}
+
 int main()
 {
+    printf("PID %d\n\n", getpid());
     int a = 5;
     int b = 10;
 
