@@ -17,6 +17,8 @@ int main(int argc, char **argv) {
     char path_mem[64];
     long long int func_addr;
 
+    char char_read_in_mem;
+
     if (argc != 3) exit(EXIT_FAILURE);
 
     pid = get_pid_from_argv(argv[1]);
@@ -30,8 +32,8 @@ int main(int argc, char **argv) {
     printf("opti_func_addr 0x%llx\n", opti_func_addr);
     // END PROTO
 
-    write_trap_at_addr(pid, path_mem, func_addr);
-    get_regs(pid, &user_regs, func_addr, &opti_func_addr, path_mem);
+    write_trap_at_addr(pid, path_mem, func_addr, &char_read_in_mem);
+    get_regs(pid, &user_regs, func_addr, &opti_func_addr, path_mem, &char_read_in_mem);
 
 
 

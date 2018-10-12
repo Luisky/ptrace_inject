@@ -2,6 +2,8 @@
 
 how to use:
 
+echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
+
 launch: ./DECOY
 then: ps -aux | grep DECOY
 finally: ./SEL [pid] [func_name]

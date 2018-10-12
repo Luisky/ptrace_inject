@@ -32,6 +32,7 @@ int add_int(int a, int b)
 int opti_add_int(int a, int b)
 {
     printf("YO LES POTES !\n");
+    fflush(stdout);
     //usleep(50000);
     return a + b;
 }
