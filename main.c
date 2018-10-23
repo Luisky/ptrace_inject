@@ -9,31 +9,40 @@
 
 int main(int argc, char **argv) {
 
+    if (argc != 3) exit(EXIT_FAILURE);
+
     pid_t pid;
     char* func_name;
-    struct user_regs_struct user_regs;
 
-    FILE *fp;
-    char path_mem[64];
-    long long int func_addr;
-
-    char char_read_in_mem;
-
-    if (argc != 3) exit(EXIT_FAILURE);
+    Arg arg;
 
     pid = get_pid_from_argv(argv[1]);
     func_name = argv[2];
 
-    init_hotpatchor(pid, func_name, path_mem, &func_addr);
+    init_hotpatchor(pid, func_name, arg.path_to_mem, &(arg.func_addr));
     init_ptrace_attach(pid);
 
-    // BEGIN PROTO
-    long long int opti_func_addr = get_func_addr(pid, "opti_add_int");
-    printf("opti_func_addr 0x%llx\n", opti_func_addr);
-    // END PROTO
+    //TODO: create a debug state for messages on stdin, or write them on stderr (either way do something about it !)
 
-    write_trap_at_addr(pid, path_mem, func_addr, &char_read_in_mem);
-    get_regs(pid, &user_regs, func_addr, &opti_func_addr, path_mem, &char_read_in_mem);
+    // CHALLENGE 1 AND 2
+    arg.opti_func_addr = get_func_addr(pid, "opti_add_int");
+    printf("opti_func_addr 0x%llx\n", arg.opti_func_addr);
+
+    write_trap_at_addr(pid, &arg);
+    exec_func_with_val(pid, &arg);
+
+    arg.opti_func_addr = get_func_addr(pid, "mod_a_b");
+    printf("mod_a_b 0x%llx\n", arg.opti_func_addr);
+
+    exec_func_with_ptr(pid, &arg); // we follow up with another call
+    continue_exec(pid, false); // RESTART THE TRACEE
+    // END CHALLENGE 1 AND 2
+
+    //TODO: CHALLENGE 3
+
+    long pagesize = sysconf(_SC_PAGESIZE);
+
+
 
 
 

@@ -22,7 +22,7 @@ pid_t get_pid_from_argv(char *argv_pid)
     return pid;
 }
 
-void init_hotpatchor(pid_t pid, char *func_name, char *path_mem, long long int *func_addr)
+void init_hotpatchor(pid_t pid, char *func_name, char *path_mem, unsigned long long int *func_addr)
 {
     sprintf(path_mem, "/proc/%d/mem", (int)pid);
     *func_addr = get_func_addr((int)pid, func_name);
@@ -32,129 +32,173 @@ void init_hotpatchor(pid_t pid, char *func_name, char *path_mem, long long int *
 
 void init_ptrace_attach(pid_t pid)
 {
-    int wstatus;
-
     if (ptrace(PTRACE_ATTACH, pid, 0, 0) == -1) {
         fprintf(stderr, "Ptrace failed\n"); //TODO: check errno
         exit(EXIT_FAILURE);
     }
 
-    waitpid((int)pid, &wstatus, 0); // first wait beceause PTRACE_ATTACH sends SIGSTOP, if this works
-    if (WIFSTOPPED(wstatus)) printf("process was traced, stopped by signal number %d\n", WSTOPSIG(wstatus));
+    continue_exec(pid, true); // RESTART THE TRACEE
 
     return;
 }
 
-void write_trap_at_addr(pid_t pid, char *path_mem, long long int func_addr, char *char_read_in_mem)
+void write_trap_at_addr(pid_t pid, Arg *arg)
 {
-    FILE *fp;
-    int wstatus;
-    size_t br;
+    int fd;
+    ssize_t br;
     uint8_t int3 = (char)0xCC;
+    static bool first_try = true; //TODO: investigate why on second call the wait() never returns
 
     //process must be stopped in order to be able to read mem so:
     kill((int)pid, SIGSTOP); // we send another SIGSTOP to be able to write in /proc/[pid]/mem
 
-    waitpid((int)pid, &wstatus, WNOHANG); // this time we don't hang otherwise both process will stop forever
-    if (WIFSTOPPED(wstatus)) printf("process was stopped by signal number %d\n", WSTOPSIG(wstatus));
+    fd = open(arg->path_to_mem, O_RDWR);
 
-    fp = fopen(path_mem, "r+");
-    fseek(fp, func_addr, SEEK_SET);
+    if (lseek(fd, (off_t) arg->func_addr, SEEK_SET) < 0) perror("lseek");
+    if (read(fd, &(arg->old_byte_bf_cc), 1) < 0) perror("read");
 
-    fread(char_read_in_mem, 1, 1, fp);
-    fseek(fp, func_addr, SEEK_SET);
+    if (lseek(fd, (off_t) arg->func_addr, SEEK_SET) < 0) perror("lseek");
+    if ( (br = write(fd, &int3, 1)) < 0) perror("write");
 
-    br = fwrite(&int3, 1, 1, fp);
-    if (br == 0) perror("fwrite");
-    fclose(fp); // this seals the deal and should send SIGTRAP after we send SIGCONT
-    printf("%ld byte(s) written at address %llx\n", br, func_addr);
+    close(fd); // this seals the deal and should send SIGTRAP after we send SIGCONT
+    printf("%ld byte(s) written at address 0x%llx\n", br, arg->func_addr);
 
-    //kill((int)pid, SIGCONT);
-    ptrace(PTRACE_CONT, pid, 0, 0);
-
-    waitpid((int)pid, &wstatus, 0); // this stops the process
-    if (WIFSTOPPED(wstatus)) printf("process was stopped by signal number %d\n", WSTOPSIG(wstatus));
+    continue_exec(pid, true); // RESTART THE TRACEE
 
     return;
 }
 
-void get_regs(pid_t pid, struct user_regs_struct * user_regs, long long int func_addr, unsigned long long int *opti_func_addr, char * path_mem, char* char_read_in_mem)
+/*
+ * This function is to be executed after a SIGTRAP occured (call to: write_trap_at_addr)
+ * don't use this if you don't know whether the traced process has stopped or not
+ *
+ */
+void exec_func_with_val(pid_t pid, Arg *arg)
 {
-    FILE *fp;
-    int wstatus;
-    size_t br;
+    int fd;
+    ssize_t br;
     uint8_t buf[3] = { (char)0xFF, (char)0xD0, (char)0xCC};
     uint8_t buf_r[3];
 
-    waitpid((int)pid, &wstatus, WNOHANG); // this stops the process
-    if (WIFSTOPPED(wstatus)) printf("process was stopped by signal number %d\n", WSTOPSIG(wstatus));
-
-    ptrace(PTRACE_GETREGS, pid, NULL, user_regs);
-    printf("REGS:\n rax: 0x%llx\n rip: 0x%llx \n\n", user_regs->rax, user_regs->rip);
+    // GET and SET the registers
+    ptrace(PTRACE_GETREGS, pid, NULL, &(arg->user_regs));
 
     // this is necessary for restoring the original state of the process
-    unsigned long long int old_rax = user_regs->rax;
-    unsigned long long int old_rdi = user_regs->rdi;
-    unsigned long long int old_rsi = user_regs->rsi;
+    unsigned long long int old_rax = arg->user_regs.rax;
+    unsigned long long int old_rdi = arg->user_regs.rdi;
+    unsigned long long int old_rsi = arg->user_regs.rsi;
 
-    user_regs->rax = *opti_func_addr;
-    user_regs->rsi = 0;
-    user_regs->rdi = 1;
+    arg->user_regs.rax = arg->opti_func_addr;
+    arg->user_regs.rsi = 0;
+    arg->user_regs.rdi = 1;
 
+    ptrace(PTRACE_SETREGS, pid, NULL, &(arg->user_regs));
 
-    printf("REGS:\n rax: 0x%llx\n rip: 0x%llx \n\n", user_regs->rax, user_regs->rip);
-    ptrace(PTRACE_SETREGS, pid, NULL, user_regs);
+    // replace code in memory
+    //TODO: refactor this code with if() statements
+    fd = open(arg->path_to_mem, O_RDWR);
 
-    fp = fopen(path_mem, "r+");
-    fseek(fp, user_regs->rip, SEEK_SET); // SUPER IMPORTANT
+    lseek(fd, (long) arg->user_regs.rip, SEEK_SET); // SUPER IMPORTANT
+    read(fd, buf_r, 3);
 
-    fread(buf_r, 1, 3, fp);
+    lseek(fd, (long) arg->user_regs.rip, SEEK_SET);
+    br = write(fd, buf, 3);
 
-    fseek(fp, user_regs->rip, SEEK_SET);
+    if (br <= 0) perror("write");
+    close(fd);
+    printf("%ld byte(s) written at address 0x%llx\n", br, arg->user_regs.rip);
 
-    br = fwrite(buf, 1, 3, fp);
-    if (br == 0) perror("fwrite");
-    fclose(fp);
-    printf("%ld byte(s) written at address %llx\n", br, user_regs->rip);
+    continue_exec(pid, true); // RESTART THE TRACEE
 
+    //TODO: this is where the code should change, since there is a SIGTRAP we could follow up with another instruction
 
-    //kill((int)pid, SIGCONT);
-    ptrace(PTRACE_CONT, pid, 0, 0);
+    // we check if rax has the right value
+    struct user_regs_struct SAVING_PRIVATE_RAX_VALUE;
+    ptrace(PTRACE_GETREGS, pid, NULL, &SAVING_PRIVATE_RAX_VALUE);
 
-    waitpid((int)pid, &wstatus, 0); // this stops the process
-    if (WIFSTOPPED(wstatus)) printf("process was stopped by signal number %d\n", WSTOPSIG(wstatus));
+    printf("value of rax right now %llx\n", SAVING_PRIVATE_RAX_VALUE.rax);
 
-    waitpid((int)pid, &wstatus, WNOHANG); // this stops the process
-    if (WIFSTOPPED(wstatus)) printf("process was stopped by signal number %d\n", WSTOPSIG(wstatus));
+    // restoring everything registers and code in memory
+    arg->user_regs.rax = old_rax;
+    arg->user_regs.rdi = old_rdi;
+    arg->user_regs.rsi = old_rsi;
+    ptrace(PTRACE_SETREGS, pid, NULL, &(arg->user_regs));
 
-    printf("SECOND TRAP\n"); //TODO: continue from here
+    fd = open(arg->path_to_mem, O_RDWR);
 
-    // restoring everything RIGHT HERE RIGHT NOW !
-    user_regs->rax = old_rax;
-    user_regs->rdi = old_rdi;
-    user_regs->rsi = old_rsi;
-    ptrace(PTRACE_SETREGS, pid, NULL, user_regs);
-
-    fp = fopen(path_mem, "r+");
-
-    fseek(fp, func_addr, SEEK_SET);
-    br = fwrite(char_read_in_mem, 1, 1, fp);
+    lseek(fd,(off_t) arg->func_addr, SEEK_SET);
+    br = write(fd, &(arg->old_byte_bf_cc), 1);
     printf("%ld byte(s) written\n", br);
-    printf("char: %x \n", *char_read_in_mem);
+    printf("char: %x \n", arg->old_byte_bf_cc);
 
-    fseek(fp, user_regs->rip, SEEK_SET);
-    br = fwrite(buf_r, 1, 3, fp);
+    lseek(fd, (long) arg->user_regs.rip, SEEK_SET);
+    write(fd, buf_r, 3);
     printf("%ld byte(s) written\n", br);
     printf("char: %x %x %x\n", buf_r[0], buf_r[1], buf_r[2]);
 
+    close(fd);
 
-    fclose(fp);
+    return;
+}
 
-    //kill((int)pid, SIGCONT);
-    ptrace(PTRACE_CONT, pid, 0, 0);
+void exec_func_with_ptr(pid_t pid, Arg *arg)
+{
+    int fd;
+    ssize_t br;
+    uint8_t buf[3] = { (char)0xFF, (char)0xD0, (char)0xCC};
+    uint8_t buf_r[3];
 
-    waitpid((int)pid, &wstatus, WNOHANG); // this stops the process
-    if (WIFSTOPPED(wstatus)) printf("process was stopped by signal number %d\n", WSTOPSIG(wstatus));
+    ptrace(PTRACE_GETREGS, pid, NULL, &(arg->user_regs));
+
+    // this is necessary for restoring the original state of the process
+    unsigned long long int old_rax = arg->user_regs.rax;
+    unsigned long long int old_rdi = arg->user_regs.rdi;
+    unsigned long long int old_rsi = arg->user_regs.rsi;
+
+    arg->user_regs.rax = arg->opti_func_addr;
+    arg->user_regs.rdi = arg->user_regs.rsp - (sizeof(void *)); //TODO: check why this works
+    arg->user_regs.rsi = arg->user_regs.rsp - 2 * (sizeof(void *));
+
+    ptrace(PTRACE_SETREGS, pid, NULL, &(arg->user_regs));
+
+    fd = open(arg->path_to_mem, O_RDWR);
+
+    lseek(fd, (long) arg->user_regs.rip, SEEK_SET); // SUPER IMPORTANT
+    read(fd, buf_r, 3);
+
+    lseek(fd, (long) arg->user_regs.rip, SEEK_SET);
+    br = write(fd, buf, 3);
+
+    if (br <= 0) perror("write");
+    close(fd);
+    printf("%ld byte(s) written at address 0x%llx\n", br, arg->user_regs.rip);
+
+    continue_exec(pid, true); // RESTART THE TRACEE
+
+    struct user_regs_struct SAVING_PRIVATE_RAX_VALUE;
+    ptrace(PTRACE_GETREGS, pid, NULL, &SAVING_PRIVATE_RAX_VALUE);
+
+    printf("value of rax right now %llx\n", SAVING_PRIVATE_RAX_VALUE.rax); // IF THIS IS EQUAL TO 1 IT MEANS WE WON FUCK YEAH
+
+    // restoring everything RIGHT HERE RIGHT NOW !
+    arg->user_regs.rax = old_rax;
+    arg->user_regs.rdi = old_rdi;
+    arg->user_regs.rsi = old_rsi;
+    ptrace(PTRACE_SETREGS, pid, NULL, &(arg->user_regs));
+
+    fd = open(arg->path_to_mem, O_RDWR);
+
+    lseek(fd, (off_t) arg->func_addr, SEEK_SET);
+    br = write(fd, &(arg->old_byte_bf_cc), 1);
+    printf("%ld byte(s) written\n", br);
+    printf("char: %x \n", arg->old_byte_bf_cc);
+
+    lseek(fd, (long) arg->user_regs.rip, SEEK_SET);
+    br = write(fd, buf_r, 3);
+    printf("%ld byte(s) written\n", br);
+    printf("char: %x %x %x\n", buf_r[0], buf_r[1], buf_r[2]);
+
+    close(fd);
 
     return;
 }
@@ -182,27 +226,28 @@ long get_maps_addr(pid_t pid)
 	return addr;
 }
 
-long get_offset_func(char* proc_name,char* func_name)
+unsigned long long int get_offset_func(char* proc_name,char* func_name)
 {
 	FILE* fp;
 	char exec[128];
-    char read_val[17];
-    long offset;
+    unsigned long long int offset;
 
 	sprintf(exec, "/usr/bin/objdump -d %s | grep %s | cut -f 1 -d \" \"", proc_name, func_name);
 
 	fp = popen(exec,"r");
 
-	if ( fp == NULL ) {
+	if (fp == NULL) {
 	    perror("popen");
-		return -1;
+		exit(EXIT_FAILURE);
 	}
 
+	fscanf(fp, "%llx", &offset); //TODO: investigate why the previous method we used had undefined behavior
+    /*char read_val[17];
 	fread(read_val, sizeof(char), 16, fp);
+    offset = strtoull(read_val, NULL, 16);*/
 	fclose(fp);
 
-    offset = strtol(read_val, NULL, 16);
-	printf("offset of the function %s 0x%llx\n", func_name, (long long unsigned int)offset);
+	printf("offset of the function %s 0x%llx\n", func_name, offset);
 
 	return offset;
 }
@@ -223,7 +268,21 @@ char* get_proc_name(pid_t pid)
 	return proc_name;
 }
 
-long long int get_func_addr(pid_t pid, char* func_name)
+unsigned long long int get_func_addr(pid_t pid, char* func_name)
 {
 	return get_maps_addr(pid) + get_offset_func(get_proc_name(pid),func_name);
+}
+
+void continue_exec(pid_t pid, bool wait) {
+
+    int wstatus;
+
+    ptrace(PTRACE_CONT, pid, NULL, NULL);
+
+    if (wait) waitpid(pid, &wstatus, 0); // this stops the tracing program, can be replaced with: wait()
+    else waitpid(pid, &wstatus, WNOHANG);
+    if (WIFSTOPPED(wstatus)) printf("process was stopped by signal number %d\n", WSTOPSIG(wstatus));
+
+    return;
+
 }

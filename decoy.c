@@ -15,48 +15,45 @@
 #include <limits.h>
 #include <signal.h>
 #include <string.h>
- 
-/*static void handler(int sig_no)
-{
-    printf("\n\n\tSignal %d caught\n\n\n", sig_no);
-
-    return;
-}*/
 
 int add_int(int a, int b)
 {
-    usleep(100000); //100ms
+    sleep(3);
     return a + b;
+}
+
+int mod_a_b(int *a, int *b)
+{
+    printf("mod_a_b\n");
+    *a = 0;
+    *b = 1;
+    printf("a: %d, b: %d\n", *a, *b);
+    return 256;
 }
 
 int opti_add_int(int a, int b)
 {
-    printf("YO LES POTES !\n");
-    fflush(stdout);
-    //usleep(50000);
+    printf("opti_add_int\n");
     return a + b;
 }
 
 int main()
 {
     printf("PID %d\n\n", getpid());
+    printf("address of posix_memalign: %p\n", posix_memalign);
     int a = 5;
     int b = 10;
 
-    /*struct sigaction sa;
-    memset (&sa, '\0', sizeof(sa));
-    sa.sa_handler = handler;
-    sigaction(SIGTRAP, &sa, NULL);*/
-
     while(true) {
 
-        if ( (a + b) == INT_MAX) {
-            break;
+        if ( (a + b) > 100000) {
+            a = 5;
+            b = 10;
         }
 
         printf("add_int(): %d\n", add_int(a, b));
-        a+=5;
-        b+=10;
+        a+=1;
+        b+=2;
     }
 
     return EXIT_SUCCESS;

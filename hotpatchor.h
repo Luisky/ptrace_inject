@@ -17,6 +17,7 @@
 #include <libelf.h>
 
 #define BASE_10 10
+#define STR_SIZE 64
 
 /*
  * kill -l
@@ -26,16 +27,28 @@
  *
  */
 
+typedef struct Arg Arg;
+
+struct Arg {
+    struct user_regs_struct user_regs;
+    unsigned long long int func_addr;
+    unsigned long long int opti_func_addr;
+    char path_to_mem[STR_SIZE];
+    unsigned char old_byte_bf_cc;
+};
+
 pid_t get_pid_from_argv(char *argv_pid);
-void init_hotpatchor(pid_t pid, char *func_name, char* path_mem, long long int *func_addr);
+void init_hotpatchor(pid_t pid, char *func_name, char* path_mem, unsigned long long int *func_addr);
 void init_ptrace_attach(pid_t pid);
 
-void write_trap_at_addr(pid_t pid, char *path_mem, long long int func_addr, char* char_read_in_mem);
-void get_regs(pid_t pid, struct user_regs_struct * user_regs, long long int func_addr, unsigned long long int *opti_func_addr, char * path_mem, char* char_read_in_mem);
+void write_trap_at_addr(pid_t pid, Arg *arg);
+void exec_func_with_val(pid_t pid, Arg *arg);
+void exec_func_with_ptr(pid_t pid, Arg *arg);
 
-long long int get_func_addr(pid_t pid, char* func_name);
-long get_offset_func(char* proc_name,char* func_name);
 long get_maps_addr(pid_t pid);
+unsigned long long int get_offset_func(char* proc_name,char* func_name);
 char* get_proc_name(pid_t pid);
+unsigned long long int get_func_addr(pid_t pid, char* func_name);
+void continue_exec(pid_t pid, bool wait);
 
 
