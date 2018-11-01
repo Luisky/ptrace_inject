@@ -16,9 +16,10 @@
 #include <signal.h>
 #include <string.h>
 
+
 int add_int(int a, int b)
 {
-    sleep(3);
+    sleep(1);
     return a + b;
 }
 
@@ -28,6 +29,8 @@ int mod_a_b(int *a, int *b)
     *a = 0;
     *b = 1;
     printf("a: %d, b: %d\n", *a, *b);
+    printf("a_addr: %p, b_addr: %p\n", a, b);
+
     return 256;
 }
 
@@ -41,6 +44,7 @@ int main()
 {
     printf("PID %d\n\n", getpid());
     printf("address of posix_memalign: %p\n", posix_memalign);
+    printf("address of aligned_alloc: %p\n", aligned_alloc);
     int a = 5;
     int b = 10;
 

@@ -3,7 +3,7 @@
 /*
  * Could use AS2_TP5 (multithreaded matrix calculations) /home/luisky/CLionProjects/L3_CDA_C/AS2_TP5
  * or a small decoy program which calls a function (maybe better at first)
- *
+ * __asm__("int3"); //0xCC
  */
 
 
@@ -35,18 +35,21 @@ int main(int argc, char **argv) {
     printf("mod_a_b 0x%llx\n", arg.opti_func_addr);
 
     exec_func_with_ptr(pid, &arg); // we follow up with another call
-    continue_exec(pid, false); // RESTART THE TRACEE
+    //continue_exec(pid, false); // RESTART THE TRACEE
     // END CHALLENGE 1 AND 2
 
     //TODO: CHALLENGE 3
 
-    long pagesize = sysconf(_SC_PAGESIZE);
+    size_t pagesize = sysconf(_SC_PAGESIZE);
+    printf("\t\t\tpagesize: %ld\n", pagesize);
 
+    char *ptr = aligned_alloc(pagesize, pagesize*2);
+    if (ptr != NULL) printf("memory allocated\n");
 
+    exec_posix_melalign(pid, &arg);
+    continue_exec(pid, false);
 
-
-
-    //__asm__("int3"); //0xCC
+    ptrace(PTRACE_DETACH, pid, NULL, NULL);
 
     return EXIT_SUCCESS;
 }
