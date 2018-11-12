@@ -37,6 +37,8 @@ struct Arg {
     char path_to_mem[STR_SIZE];
     unsigned char old_byte;
     unsigned char old_buf[3];
+    unsigned long long int old_rsi;
+    unsigned long long int old_rdi;
 };
 
 pid_t get_pid_from_argv(char *argv_pid);

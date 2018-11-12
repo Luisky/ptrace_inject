@@ -28,7 +28,7 @@ int main(int argc, char **argv) {
     arg.opti_func_addr = get_func_addr(pid, "opti_add_int");
     printf("opti_func_addr 0x%llx\n", arg.opti_func_addr);
 
-    write_trap_at_addr(pid, &arg);
+    write_trap_at_addr(pid, &arg); // WE SHOULD BE WAITING HERE
     exec_func_with_val(pid, &arg);
 
     arg.opti_func_addr = get_func_addr(pid, "mod_a_b");
@@ -37,8 +37,6 @@ int main(int argc, char **argv) {
     exec_func_with_ptr(pid, &arg); // we follow up with another call
     //continue_exec(pid, false); // RESTART THE TRACEE
     // END CHALLENGE 1 AND 2
-
-    //TODO: CHALLENGE 3
 
     size_t pagesize = sysconf(_SC_PAGESIZE);
     printf("\t\t\tpagesize: %ld\n", pagesize);

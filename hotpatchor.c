@@ -137,6 +137,10 @@ void exec_func_with_val(pid_t pid, Arg *arg)
     ptrace(PTRACE_GETREGS, pid, NULL, &(arg->user_regs));
     registers = arg->user_regs; // same as memcopy
 
+    //TODO: see if this works
+    arg->old_rsi = arg->user_regs.rsi;
+    arg->old_rdi = arg->user_regs.rdi;
+
     //TODO: should use a va_list for argument instead of hardcoding
     registers.rax = arg->opti_func_addr;
     registers.rsi = 0;
@@ -370,6 +374,7 @@ void exec_posix_melalign(pid_t pid, Arg *arg)
     registers = arg->user_regs;
 
     registers.rax = addr_allocated;
+    // TODO: for testing purposes, restore old_rsi & old_rdi
     registers.rdi = 4096;
     registers.rsi = 4096;
 
@@ -384,7 +389,113 @@ void exec_posix_melalign(pid_t pid, Arg *arg)
 
     // restoring everything RIGHT HERE RIGHT NOW !
     ptrace(PTRACE_SETREGS, pid, NULL, &(arg->user_regs));
+    // WTF
+    printf(" r15 : %llx\n", arg->user_regs.r15);
+    printf(" r14 : %llx\n", arg->user_regs.r14);
+    printf(" r13 : %llx\n", arg->user_regs.r13);
+    printf(" r12 : %llx\n", arg->user_regs.r12);
+
+    printf(" rbp : %llx\n", arg->user_regs.rbp);
+    printf(" rbx : %llx\n", arg->user_regs.rbx);
+    printf(" r11 : %llx\n", arg->user_regs.r11);
+    printf(" r10 : %llx\n", arg->user_regs.r10);
+
+    printf(" r9 : %llx\n", arg->user_regs.r9);
+    printf(" r8 : %llx\n", arg->user_regs.r8);
+    printf(" rax : %llx\n", arg->user_regs.rax);
+    printf(" rcx : %llx\n", arg->user_regs.rcx);
+
+    printf(" rdx : %llx\n", arg->user_regs.rdx);
+    printf(" rsi : %llx\n", arg->user_regs.rsi);
+    printf(" rdi : %llx\n", arg->user_regs.rdi);
+    printf(" orig_rax : %llx\n", arg->user_regs.orig_rax);
+
+    printf(" rip : %llx\n", arg->user_regs.rip);
+    printf(" cs : %llx\n", arg->user_regs.cs);
+    printf(" eflags : %llx\n", arg->user_regs.eflags);
+    printf(" rsp : %llx\n", arg->user_regs.rsp);
+
+    printf(" ss : %llx\n", arg->user_regs.ss);
+    printf(" fs_base : %llx\n", arg->user_regs.fs_base);
+    printf(" gs_base : %llx\n", arg->user_regs.gs_base);
+    printf(" ds : %llx\n", arg->user_regs.ds);
+
+    printf(" es : %llx\n", arg->user_regs.es);
+    printf(" fs : %llx\n", arg->user_regs.fs);
+    printf(" gs : %llx\n", arg->user_regs.gs);
+
+    ///////////////////
+
+    printf(" r15 : %llx\n", registers.r15);
+    printf(" r14 : %llx\n", registers.r14);
+    printf(" r13 : %llx\n", registers.r13);
+    printf(" r12 : %llx\n", registers.r12);
+
+    printf(" rbp : %llx\n", registers.rbp);
+    printf(" rbx : %llx\n", registers.rbx);
+    printf(" r11 : %llx\n", registers.r11);
+    printf(" r10 : %llx\n", registers.r10);
+
+    printf(" r9 : %llx\n", registers.r9);
+    printf(" r8 : %llx\n", registers.r8);
+    printf(" rax : %llx\n", registers.rax);
+    printf(" rcx : %llx\n", registers.rcx);
+
+    printf(" rdx : %llx\n", registers.rdx);
+    printf(" rsi : %llx\n", registers.rsi);
+    printf(" rdi : %llx\n", registers.rdi);
+    printf(" orig_rax : %llx\n", registers.orig_rax);
+
+    printf(" rip : %llx\n", registers.rip);
+    printf(" cs : %llx\n", registers.cs);
+    printf(" eflags : %llx\n", registers.eflags);
+    printf(" rsp : %llx\n", registers.rsp);
+
+    printf(" ss : %llx\n", registers.ss);
+    printf(" fs_base : %llx\n", registers.fs_base);
+    printf(" gs_base : %llx\n", registers.gs_base);
+    printf(" ds : %llx\n", registers.ds);
+
+    printf(" es : %llx\n", registers.es);
+    printf(" fs : %llx\n", registers.fs);
+    printf(" gs : %llx\n", registers.gs);
+
+    printf(" old_rsi : %llx old_rdi : %llx\n", arg->old_rsi, arg->old_rdi);
+
+    //////////////////////
+
     restore_mem(pid, arg);
+
+    /*
+     * Challenge 4 : TESTING
+     */
+
+    union ulli_u { // 8 bytes
+        unsigned long long int cont;
+        unsigned char each[8];
+    };
+
+    union ulli_u test;
+    test.cont = addr_allocated;
+
+    unsigned char jump_at_addr_and_ret[16] = { (unsigned char) 0x48, (unsigned char) 0xB8};
+    for (int i = 0; i < 8; ++i) jump_at_addr_and_ret[2+i] = test.each[i];
+    jump_at_addr_and_ret[10] = (unsigned char)0xFF;
+    jump_at_addr_and_ret[11] = (unsigned char)0xE0;
+    jump_at_addr_and_ret[12] = (unsigned char)0xC3;
+    jump_at_addr_and_ret[13] = (unsigned char)0x90;
+    jump_at_addr_and_ret[14] = (unsigned char)0x90;
+    jump_at_addr_and_ret[15] = (unsigned char)0x90;
+
+
+
+    fd = open(arg->path_to_mem, O_RDWR);
+    lseek(fd, (off_t) arg->func_addr, SEEK_SET);
+    write(fd, jump_at_addr_and_ret, 16);
+
+    close(fd);
+
+    free(code);
 
     return;
 }
@@ -431,7 +542,7 @@ unsigned long long int get_offset_func(char* proc_name,char* func_name)
     /*char read_val[17];
 	fread(read_val, sizeof(char), 16, fp);
     offset = strtoull(read_val, NULL, 16);*/
-	fclose(fp);
+	pclose(fp);
 
 	printf("offset of the function %s 0x%llx\n", func_name, offset);
 
@@ -454,7 +565,7 @@ unsigned long long int get_offset_libc_func(char *lib_path, char * func_name)
     }
 
     fscanf(fp, "%llx", &offset); //TODO: investigate why the previous method we used had undefined behavior
-    fclose(fp);
+    pclose(fp);
 
     printf("offset of the function %s 0x%llx\n", func_name, offset);
 
@@ -500,9 +611,7 @@ void continue_exec(pid_t pid, bool wait)
 int challenge3_func(int a, int b)
 {
     //test with printf will fail it seems
-    printf("hey\n");
-    a = 4096;
-    b = 4096;
+    //printf("hey\n");
 
     return a + b;
 }
