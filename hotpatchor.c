@@ -1,27 +1,6 @@
 #include "hotpatchor.h"
 
 
-pid_t get_pid_from_argv(char *argv_pid)
-{
-    pid_t pid;
-    char *endptr;
-    errno = 0; // to differentiate between success and failure after strtol() has been called
-
-    pid = (pid_t)strtol(argv_pid, &endptr, BASE_10);
-
-    if ( (errno == ERANGE && ((long)pid == LONG_MAX || (long)pid == LONG_MIN)) || (errno != 0 && pid == 0) ) {
-        perror("strtol");
-        exit(EXIT_FAILURE);
-    }
-
-    if (endptr == argv_pid) {
-        fprintf(stderr, "Aucun chiffre trouvé\n");
-        exit(EXIT_FAILURE);
-    }
-
-    return pid;
-}
-
 void init_hotpatchor(pid_t pid, char *func_name, char *path_mem, unsigned long long int *func_addr)
 {
     sprintf(path_mem, "/proc/%d/mem", (int)pid);
@@ -69,7 +48,7 @@ void write_trap_at_addr(pid_t pid, Arg *arg)
 
 
 /*
- * this function is not to be used outside of exec_
+ * In order to use this function the process must be stopped
  *
  */
 void write_indirect_call_at_rip(pid_t pid, Arg *arg)
@@ -82,24 +61,20 @@ void write_indirect_call_at_rip(pid_t pid, Arg *arg)
 
     fd = open(arg->path_to_mem, O_RDWR);
 
-    lseek(fd, (long) arg->user_regs.rip, SEEK_SET); // SUPER IMPORTANT
+    lseek(fd, (long) arg->func_addr+1, SEEK_SET); // SUPER IMPORTANT
     read(fd, arg->old_buf, 3);
 
-    lseek(fd, (long) arg->user_regs.rip, SEEK_SET);
+    lseek(fd, (long) arg->func_addr+1, SEEK_SET);
     br = write(fd, buf, 3);
 
     if (br <= 0) perror("write");
     close(fd);
-    printf("%ld byte(s) written at address 0x%llx\n", br, arg->user_regs.rip);
+    printf("%ld byte(s) written at address 0x%llx\n", br, arg->func_addr+1);
 
     return;
 }
 
-/*
- * rip must be set back to its previous value
- * this function is not to be used outside of exec_
- *
- */
+
 void restore_mem(pid_t pid, Arg *arg)
 {
     int fd;
@@ -114,8 +89,8 @@ void restore_mem(pid_t pid, Arg *arg)
     printf("%ld byte(s) written\n", br);
     printf("char: %x \n", arg->old_byte);
 
-    lseek(fd, (long) arg->user_regs.rip, SEEK_SET);
-    write(fd, arg->old_buf, 3);
+    lseek(fd, (long) arg->func_addr+1, SEEK_SET);
+    br = write(fd, arg->old_buf, 3);
     printf("%ld byte(s) written\n", br);
     printf("char: %x %x %x\n", arg->old_buf[0], arg->old_buf[1], arg->old_buf[2]);
 
@@ -145,6 +120,7 @@ void exec_func_with_val(pid_t pid, Arg *arg)
     registers.rax = arg->opti_func_addr;
     registers.rsi = 0;
     registers.rdi = 1;
+    registers.rip = arg->func_addr+1;
 
     ptrace(PTRACE_SETREGS, pid, NULL, &registers);
     write_indirect_call_at_rip(pid, arg);
@@ -215,6 +191,7 @@ void exec_func_with_ptr(pid_t pid, Arg *arg)
     registers.rax = arg->opti_func_addr;
     registers.rdi = addr_a;
     registers.rsi = addr_b;
+    registers.rip = arg->func_addr+1;
 
     ptrace(PTRACE_SETREGS, pid, NULL, &registers);
     write_indirect_call_at_rip(pid, arg);
@@ -229,8 +206,8 @@ void exec_func_with_ptr(pid_t pid, Arg *arg)
     long a_val = ptrace(PTRACE_PEEKDATA, pid, addr_a, NULL);
     long b_val = ptrace(PTRACE_PEEKDATA, pid, addr_b, NULL);
 
-    ptrace(PTRACE_POKEDATA, pid, addr_a, old_data_a);
-    ptrace(PTRACE_POKEDATA, pid, addr_b, old_data_b);
+    if (ptrace(PTRACE_POKEDATA, pid, addr_a, old_data_a) == -1) perror("first POKEDATA");
+    if (ptrace(PTRACE_POKEDATA, pid, addr_b, old_data_b) == -1) perror("second POKEDATA");
 
     printf("val_a: %lx, val_b: %lx\n", a_val, b_val);
 
@@ -240,20 +217,64 @@ void exec_func_with_ptr(pid_t pid, Arg *arg)
     return;
 }
 
+
 void exec_posix_melalign(pid_t pid, Arg *arg)
 {
     //needed for the rest of the challenge
     unsigned long long int offset_func_c3 = get_offset_func(get_proc_name(getpid()), "challenge3_func");
     unsigned long long int offset_func_c3_end = get_offset_func(get_proc_name(getpid()), "end_challeng3_func");
     unsigned long long int func_size = offset_func_c3_end - offset_func_c3;
+
     size_t pagesize = (size_t) sysconf(_SC_PAGESIZE);
     unsigned long long int mem_size = pagesize * (1 + (func_size / pagesize));
 
-
+    /*
+     * we save the old registers values in order to restore them later on
+     * and create another structure that we will modify
+     */
     struct user_regs_struct registers;
-
     ptrace(PTRACE_GETREGS, pid, NULL, &(arg->user_regs));
     registers = arg->user_regs;
+
+    /*
+     * Getting the path and offset in mem of libc
+     */
+    char libc_path[256];
+    unsigned long long int libc_addr = 0;
+
+    path_and_start_addr_of_libc(pid, libc_path, &libc_addr);
+
+    printf("\tlibc_path: %s\n", libc_path);
+    printf("\tlibc_addr: 0x%llx\n", libc_addr);
+
+    /*
+     * Getting the offset in mem of alligend_alloc and mprotect
+     */
+
+    unsigned long long int aligned_alloc_address = get_offset_libc_func(libc_path, "aligned_alloc") + libc_addr; // look at README
+    unsigned long long int posix_memalign_address= get_offset_libc_func(libc_path, "posix_memalign") + libc_addr; // with libc-2.28 aligned_alloc causes stack_smashing TODO: test wether posix_memalign has the same behavior
+    unsigned long long int mprotect_address = get_offset_libc_func(libc_path, "mprotect") + libc_addr; // look at README
+    printf("aligned_alloc_address: 0x%llx\n", aligned_alloc_address);
+    printf("posix_memalign: 0x%llx\n", posix_memalign_address);
+    printf("mprotect_address: 0x%llx\n", mprotect_address);
+
+    /*
+     * Changing the registers to the right values:
+     * rax -> addr in mem of alligned alloc
+     * rdi -> the size of a page
+     * rsi -> the size of memory we want !
+     * rip -> the addr in memory after 0xCC to 0xFF 0xD0
+     */
+    /*registers.rax = aligned_alloc_address;
+    registers.rdi = pagesize;
+    registers.rsi = mem_size;
+    registers.rip = arg->func_addr+1;*/
+
+    /*
+     * Tests with posix_memalign
+     * and since we don't want to use the stack we'll use the heap
+     *
+     */
 
     /*
      * TODO: PUT THIS IN A FUNCTION
@@ -265,11 +286,12 @@ void exec_posix_melalign(pid_t pid, Arg *arg)
     char path[64];
     char *line = NULL;
     size_t len = 0;
+    ssize_t nb_char_read;
 
     sprintf(path, "/proc/%d/maps", pid);
 
-    unsigned long long int addr_start = 0;
-    unsigned long long int addr_end = 0;
+    unsigned long long int addr_start;
+    unsigned long long int addr_end;
     char perms[5];
     unsigned long int offset;
     short dev_maj;
@@ -277,50 +299,60 @@ void exec_posix_melalign(pid_t pid, Arg *arg)
     int inode;
     char path_or_desc[256];
 
-    char libc_path[256];
-    unsigned long long int libc_addr = 0;
+    unsigned long long int addr_start_heap = 0;
 
     FILE *fp_maps = fopen(path, "r");
     while (getline(&line, &len, fp_maps) != -1) {
         sscanf(line, "%llx-%llx %s %lx %d:%d %d %s", &addr_start, &addr_end, perms, &offset, (int *) &dev_maj, (int *) &dev_min, &inode, path_or_desc);
-        if(path_or_desc[0] == '/') {
-            char * cp = strrchr(path_or_desc, '/');
-            cp++; // move to first char instead of /
-            if ( (strcmp(cp, "libc-2.27.so") == 0) && (strcmp(perms, "r-xp")) == 0 ) { //executable code
-                strcpy(libc_path, path_or_desc);
-                libc_addr = addr_start;
-            }
-        }
+        if(strcmp(path_or_desc, "[heap]") == 0) addr_start_heap = addr_start;
     }
 
-    printf("\tlibc_addr: 0x%llx\n", libc_addr);
-    printf("\tlibc_path: %s\n", libc_path);
-
-    unsigned long long int aligned_alloc_address = get_offset_libc_func(libc_path, "aligned_alloc") + libc_addr; // look at README
-    unsigned long long int mprotect_address = get_offset_libc_func(libc_path, "mprotect") + libc_addr; // look at README
+    printf("\taddr_start_heap: 0x%llx\n", addr_start_heap);
+    unsigned long long int test_poke = 0x12345678;
+    ptrace(PTRACE_POKEDATA, pid, addr_start_heap, test_poke);
+    printf("WHAT HAS BEEN POKED %llx\n\n", ptrace(PTRACE_PEEKDATA, pid , addr_start_heap, NULL) );
 
     /*
-     * TODO: PUT THIS IN A FUNCTION
+     * TODO: END OF PUT THIS IN A FUNCTION
      */
 
-    //linked to the begining of the function
-    registers.rax = aligned_alloc_address;
-    registers.rdi = pagesize;
-    registers.rsi = mem_size;
+    registers.rax = posix_memalign_address;
+    registers.rdi = addr_start_heap;
+    registers.rsi = pagesize;
+    registers.rdx = mem_size;
+    registers.rip = arg->func_addr+1;
 
+    unsigned long long int old_data_heap = ptrace(PTRACE_PEEKDATA, pid, addr_start_heap, NULL);
+
+    /*
+     * we set the registers and write the indirect call
+     */
     ptrace(PTRACE_SETREGS, pid, NULL, &registers);
     write_indirect_call_at_rip(pid, arg);
 
+    //TODO: check this waitpid
     continue_exec(pid, true); // RESTART THE TRACEE
 
     ptrace(PTRACE_GETREGS, pid, NULL, &registers);
     // the value of rax should be the address of the memory allocated
-    printf("value of rax right now 0x%llx or %lld\n", registers.rax, registers.rax);
+    // BUT IT AIN'T WTF IS GOING ON WITH LIBC 2.28
+    printf("return value of aligned alloc (or posix_memalign) in rax is: 0x%llx \n", registers.rax);
     unsigned long long int addr_allocated = registers.rax;
+
+    unsigned long long int new_data_heap = ptrace(PTRACE_PEEKDATA, pid, addr_start_heap, NULL);
+    if (ptrace(PTRACE_POKEDATA, pid, addr_start_heap, old_data_heap) == -1) perror("first POKEDATA");
+    printf("ADDR allocated by posix_memalign %llx\n", new_data_heap);
+
+    /*
+     * End of test with posix_memalign
+     */
 
     // restoring everything RIGHT HERE RIGHT NOW !
     ptrace(PTRACE_SETREGS, pid, NULL, &(arg->user_regs));
     restore_mem(pid, arg);
+
+
+    printf("\t\t\t\tFIRST STEP DONE\n");
 
     /*
      * SECOND STEP: mprotect
@@ -330,9 +362,10 @@ void exec_posix_melalign(pid_t pid, Arg *arg)
     registers = arg->user_regs;
 
     registers.rax = mprotect_address;
-    registers.rdi = addr_allocated;
+    registers.rdi = new_data_heap;
     registers.rsi = mem_size-1;
     registers.rdx = PROT_READ | PROT_WRITE | PROT_EXEC;
+    registers.rip = arg->func_addr+1;
 
     ptrace(PTRACE_SETREGS, pid, NULL, &registers);
     write_indirect_call_at_rip(pid, arg);
@@ -341,11 +374,13 @@ void exec_posix_melalign(pid_t pid, Arg *arg)
 
     ptrace(PTRACE_GETREGS, pid, NULL, &registers);
     // the value of rax should be the address of the memory allocated
-    printf("value of rax right now 0x%llx or %lld\n", registers.rax, registers.rax);
+    printf("value of rax right now 0x%llx \n", registers.rax);
 
     // restoring everything RIGHT HERE RIGHT NOW !
     ptrace(PTRACE_SETREGS, pid, NULL, &(arg->user_regs));
     restore_mem(pid, arg);
+
+    printf("\t\t\t\tSECOND STEP DONE\n");
 
     /*
      * THIRD STEP: copy the function code inside the allocated memory
@@ -377,6 +412,7 @@ void exec_posix_melalign(pid_t pid, Arg *arg)
     // TODO: for testing purposes, restore old_rsi & old_rdi
     registers.rdi = 4096;
     registers.rsi = 4096;
+    registers.rip = arg->func_addr+1;
 
     ptrace(PTRACE_SETREGS, pid, NULL, &registers);
     write_indirect_call_at_rip(pid, arg);
@@ -385,86 +421,20 @@ void exec_posix_melalign(pid_t pid, Arg *arg)
 
     ptrace(PTRACE_GETREGS, pid, NULL, &registers);
     // the value of rax should be the address of the memory allocated
-    printf("value of rax right now 0x%llx or %lld\n", registers.rax, registers.rax);
+    printf("value of rax right now 0x%llx \n", registers.rax);
 
     // restoring everything RIGHT HERE RIGHT NOW !
+    //TODO: should test what's below
+    //arg->user_regs.rip = arg->func_addr;
     ptrace(PTRACE_SETREGS, pid, NULL, &(arg->user_regs));
     // WTF
-    printf(" r15 : %llx\n", arg->user_regs.r15);
-    printf(" r14 : %llx\n", arg->user_regs.r14);
-    printf(" r13 : %llx\n", arg->user_regs.r13);
-    printf(" r12 : %llx\n", arg->user_regs.r12);
 
-    printf(" rbp : %llx\n", arg->user_regs.rbp);
-    printf(" rbx : %llx\n", arg->user_regs.rbx);
-    printf(" r11 : %llx\n", arg->user_regs.r11);
-    printf(" r10 : %llx\n", arg->user_regs.r10);
-
-    printf(" r9 : %llx\n", arg->user_regs.r9);
-    printf(" r8 : %llx\n", arg->user_regs.r8);
-    printf(" rax : %llx\n", arg->user_regs.rax);
-    printf(" rcx : %llx\n", arg->user_regs.rcx);
-
-    printf(" rdx : %llx\n", arg->user_regs.rdx);
-    printf(" rsi : %llx\n", arg->user_regs.rsi);
-    printf(" rdi : %llx\n", arg->user_regs.rdi);
-    printf(" orig_rax : %llx\n", arg->user_regs.orig_rax);
-
-    printf(" rip : %llx\n", arg->user_regs.rip);
-    printf(" cs : %llx\n", arg->user_regs.cs);
-    printf(" eflags : %llx\n", arg->user_regs.eflags);
-    printf(" rsp : %llx\n", arg->user_regs.rsp);
-
-    printf(" ss : %llx\n", arg->user_regs.ss);
-    printf(" fs_base : %llx\n", arg->user_regs.fs_base);
-    printf(" gs_base : %llx\n", arg->user_regs.gs_base);
-    printf(" ds : %llx\n", arg->user_regs.ds);
-
-    printf(" es : %llx\n", arg->user_regs.es);
-    printf(" fs : %llx\n", arg->user_regs.fs);
-    printf(" gs : %llx\n", arg->user_regs.gs);
-
-    ///////////////////
-
-    printf(" r15 : %llx\n", registers.r15);
-    printf(" r14 : %llx\n", registers.r14);
-    printf(" r13 : %llx\n", registers.r13);
-    printf(" r12 : %llx\n", registers.r12);
-
-    printf(" rbp : %llx\n", registers.rbp);
-    printf(" rbx : %llx\n", registers.rbx);
-    printf(" r11 : %llx\n", registers.r11);
-    printf(" r10 : %llx\n", registers.r10);
-
-    printf(" r9 : %llx\n", registers.r9);
-    printf(" r8 : %llx\n", registers.r8);
-    printf(" rax : %llx\n", registers.rax);
-    printf(" rcx : %llx\n", registers.rcx);
-
-    printf(" rdx : %llx\n", registers.rdx);
-    printf(" rsi : %llx\n", registers.rsi);
-    printf(" rdi : %llx\n", registers.rdi);
-    printf(" orig_rax : %llx\n", registers.orig_rax);
-
-    printf(" rip : %llx\n", registers.rip);
-    printf(" cs : %llx\n", registers.cs);
-    printf(" eflags : %llx\n", registers.eflags);
-    printf(" rsp : %llx\n", registers.rsp);
-
-    printf(" ss : %llx\n", registers.ss);
-    printf(" fs_base : %llx\n", registers.fs_base);
-    printf(" gs_base : %llx\n", registers.gs_base);
-    printf(" ds : %llx\n", registers.ds);
-
-    printf(" es : %llx\n", registers.es);
-    printf(" fs : %llx\n", registers.fs);
-    printf(" gs : %llx\n", registers.gs);
-
-    printf(" old_rsi : %llx old_rdi : %llx\n", arg->old_rsi, arg->old_rdi);
-
-    //////////////////////
+    //print_registers(&(arg->user_regs));
+    //print_registers(&registers);
 
     restore_mem(pid, arg);
+
+    printf("\t\t\t\tTHIRD STEP DONE\n");
 
     /*
      * Challenge 4 : TESTING
@@ -500,6 +470,29 @@ void exec_posix_melalign(pid_t pid, Arg *arg)
     return;
 }
 
+
+pid_t get_pid_from_argv(char *argv_pid)
+{
+    pid_t pid;
+    char *endptr;
+    errno = 0; // to differentiate between success and failure after strtol() has been called
+
+    pid = (pid_t)strtol(argv_pid, &endptr, BASE_10);
+
+    if ( (errno == ERANGE && ((long)pid == LONG_MAX || (long)pid == LONG_MIN)) || (errno != 0 && pid == 0) ) {
+        perror("strtol");
+        exit(EXIT_FAILURE);
+    }
+
+    if (endptr == argv_pid) {
+        fprintf(stderr, "Aucun chiffre trouvé\n");
+        exit(EXIT_FAILURE);
+    }
+
+    return pid;
+}
+
+
 long get_maps_addr(pid_t pid)
 {
     char path_maps[64];
@@ -523,6 +516,7 @@ long get_maps_addr(pid_t pid)
 	return addr;
 }
 
+
 unsigned long long int get_offset_func(char* proc_name,char* func_name)
 {
 	FILE* fp;
@@ -544,10 +538,11 @@ unsigned long long int get_offset_func(char* proc_name,char* func_name)
     offset = strtoull(read_val, NULL, 16);*/
 	pclose(fp);
 
-	printf("offset of the function %s 0x%llx\n", func_name, offset);
+	fprintf(stderr, "\toffset of the function %s 0x%llx\n", func_name, offset);
 
 	return offset;
 }
+
 
 unsigned long long int get_offset_libc_func(char *lib_path, char * func_name)
 {
@@ -572,6 +567,7 @@ unsigned long long int get_offset_libc_func(char *lib_path, char * func_name)
     return offset;
 }
 
+
 char* get_proc_name(pid_t pid)
 {
 	int fd;
@@ -588,10 +584,12 @@ char* get_proc_name(pid_t pid)
 	return proc_name;
 }
 
+
 unsigned long long int get_func_addr(pid_t pid, char* func_name)
 {
 	return get_maps_addr(pid) + get_offset_func(get_proc_name(pid),func_name);
 }
+
 
 void continue_exec(pid_t pid, bool wait)
 {
@@ -602,11 +600,93 @@ void continue_exec(pid_t pid, bool wait)
 
     if (wait) waitpid(pid, &wstatus, 0); // this stops the tracing program, can be replaced with: wait()
     else waitpid(pid, &wstatus, WNOHANG);
-    if (WIFSTOPPED(wstatus)) printf("process was stopped by signal number %d\n", WSTOPSIG(wstatus));
+    if (WIFSTOPPED(wstatus)) {
+        printf("process was stopped by signal number %d\n", WSTOPSIG(wstatus));
+        /*if (WSTOPSIG(wstatus) == 11) {
+            perror("SIGSEGV");
+            exit(EXIT_FAILURE);
+        }*/
+    }
+
 
     return;
 
 }
+
+void path_and_start_addr_of_libc(pid_t pid, char *libc_path, unsigned long long int *libc_addr)
+{
+    /*
+     * using FILE (stream) is actually more convenient for this kind of stuff
+     */
+
+    char path[64];
+    char *line = NULL;
+    size_t len = 0;
+
+    sprintf(path, "/proc/%d/maps", pid);
+
+    unsigned long long int addr_start = 0;
+    unsigned long long int addr_end = 0;
+    char perms[5];
+    unsigned long int offset;
+    short dev_maj;
+    short dev_min;
+    int inode;
+    char path_or_desc[256];
+
+
+    FILE *fp_maps = fopen(path, "r");
+    while (getline(&line, &len, fp_maps) != -1) {
+        sscanf(line, "%llx-%llx %s %lx %d:%d %d %s", &addr_start, &addr_end, perms, &offset, (int *) &dev_maj, (int *) &dev_min, &inode, path_or_desc);
+        if(path_or_desc[0] == '/') {
+            char * cp = strrchr(path_or_desc, '/');
+            cp++; // move to first char instead of /
+            if ( (strcmp(cp, "libc-2.28.so") == 0) && (strcmp(perms, "r-xp")) == 0 ) { //executable code
+                strcpy(libc_path, path_or_desc);
+                *libc_addr = addr_start;
+            }
+        }
+    }
+
+    return;
+}
+
+
+void print_registers(struct user_regs_struct *regs)
+{
+    printf("*********PRINT_RESGISTER_BEGIN**********\n");
+    printf(" r15 : %llx\n", regs->r15);
+    printf(" r14 : %llx\n", regs->r14);
+    printf(" r13 : %llx\n", regs->r13);
+    printf(" r12 : %llx\n", regs->r12);
+    printf(" rbp : %llx\n", regs->rbp);
+    printf(" rbx : %llx\n", regs->rbx);
+    printf(" r11 : %llx\n", regs->r11);
+    printf(" r10 : %llx\n", regs->r10);
+    printf(" r9 : %llx\n", regs->r9);
+    printf(" r8 : %llx\n", regs->r8);
+    printf(" rax : %llx\n", regs->rax);
+    printf(" rcx : %llx\n", regs->rcx);
+    printf(" rdx : %llx\n", regs->rdx);
+    printf(" rsi : %llx\n", regs->rsi);
+    printf(" rdi : %llx\n", regs->rdi);
+    printf(" orig_rax : %llx\n", regs->orig_rax);
+    printf(" rip : %llx\n", regs->rip);
+    printf(" cs : %llx\n", regs->cs);
+    printf(" eflags : %llx\n", regs->eflags);
+    printf(" rsp : %llx\n", regs->rsp);
+    printf(" ss : %llx\n", regs->ss);
+    printf(" fs_base : %llx\n", regs->fs_base);
+    printf(" gs_base : %llx\n", regs->gs_base);
+    printf(" ds : %llx\n", regs->ds);
+    printf(" es : %llx\n", regs->es);
+    printf(" fs : %llx\n", regs->fs);
+    printf(" gs : %llx\n", regs->gs);
+    printf("*********REGISTERS PRINTED_END**********\n");
+
+    return;
+}
+
 
 int challenge3_func(int a, int b)
 {
@@ -615,6 +695,7 @@ int challenge3_func(int a, int b)
 
     return a + b;
 }
+
 
 void end_challeng3_func()
 {
