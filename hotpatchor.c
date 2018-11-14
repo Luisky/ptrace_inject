@@ -282,7 +282,7 @@ void exec_posix_melalign(pid_t pid, Arg *arg)
 
     FILE *fp_maps = fopen(path, "r");
     while (getline(&line, &len, fp_maps) != -1) {
-        sscanf(line, "%llx-%llx %s %lx %d:%d %d %s", &addr_start, &addr_end, perms, &offset, (int *) &dev_maj, (int *) &dev_min, &inode, path_or_desc);
+        sscanf(line, "%llx-%llx %s %lx %x:%x %d %s", &addr_start, &addr_end, perms, &offset, (int *) &dev_maj, (int *) &dev_min, &inode, path_or_desc);
         if(path_or_desc[0] == '/') {
             char * cp = strrchr(path_or_desc, '/');
             cp++; // move to first char instead of /
