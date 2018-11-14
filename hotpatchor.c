@@ -63,7 +63,7 @@ void write_trap_at_addr(pid_t pid, Arg *arg)
 /*
  * In order to use this function the process must be stopped
  * If everything is working according to plan rip should be equal to func_addr+1
- * if not ... well ABORT !
+ * if not ... well ABORT !!!
  *
  */
 void write_indirect_call_at_rip(pid_t pid, Arg *arg)
@@ -377,7 +377,7 @@ void exec_posix_melalign(pid_t pid, Arg *arg)
     registers = arg->user_regs;
 
     registers.rax = mprotect_address;
-    registers.rdi = new_data_heap;
+    registers.rdi = new_data_heap; //or addr_allocated with aligned_alloc
     registers.rsi = mem_size-1;
     registers.rdx = PROT_READ | PROT_WRITE | PROT_EXEC;
 
@@ -414,7 +414,7 @@ void exec_posix_melalign(pid_t pid, Arg *arg)
     close(fd);
 
     fd = open(arg->path_to_mem, O_RDWR);
-    lseek(fd, (off_t) addr_allocated, SEEK_SET);
+    lseek(fd, (off_t) new_data_heap, SEEK_SET); //or addr_allocated with aligned_alloc
     write(fd, code, func_size);
 
     close(fd);
@@ -422,7 +422,7 @@ void exec_posix_melalign(pid_t pid, Arg *arg)
     ptrace(PTRACE_GETREGS, pid, NULL, &(arg->user_regs));
     registers = arg->user_regs;
 
-    registers.rax = addr_allocated;
+    registers.rax = new_data_heap; //or addr_allocated with aligned_alloc
     // TODO: for testing purposes, restore old_rsi & old_rdi
     registers.rdi = 4096;
     registers.rsi = 4096;

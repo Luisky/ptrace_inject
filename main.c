@@ -42,6 +42,8 @@ int main(int argc, char **argv) {
     exec_posix_melalign(pid, &arg);
     continue_exec(pid, false);
 
+    printf("finished\n");
+
     ptrace(PTRACE_DETACH, pid, NULL, NULL);
 
     return EXIT_SUCCESS;
