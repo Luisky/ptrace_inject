@@ -324,9 +324,6 @@ void exec_posix_melalign(pid_t pid, Arg *arg)
     }
 
     printf("\taddr_start_heap: 0x%llx\n", addr_start_heap);
-    unsigned long long int test_poke = 0x12345678;
-    ptrace(PTRACE_POKEDATA, pid, addr_start_heap, test_poke);
-    printf("WHAT HAS BEEN POKED %llx\n\n", ptrace(PTRACE_PEEKDATA, pid , addr_start_heap, NULL) );
 
     /*
      * TODO: END OF PUT THIS IN A FUNCTION
