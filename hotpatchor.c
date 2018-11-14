@@ -459,7 +459,10 @@ void exec_posix_melalign(pid_t pid, Arg *arg)
     test.cont = new_data_heap; //or addr_allocated
 
     unsigned char jump_at_addr_and_ret[16] = { (unsigned char) 0x48, (unsigned char) 0xB8};
-    for (int i = 0; i < 8; ++i) jump_at_addr_and_ret[2+i] = test.each[i];
+    for (int i = 0; i < 8; ++i) {
+        jump_at_addr_and_ret[2+i] = test.each[i];
+        printf("each[%d] = %x", i, test.each[i]);
+    }
     jump_at_addr_and_ret[10] = (unsigned char)0xFF;
     jump_at_addr_and_ret[11] = (unsigned char)0xE0;
     jump_at_addr_and_ret[12] = (unsigned char)0xC3;
