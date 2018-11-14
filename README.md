@@ -48,3 +48,8 @@ to fix the callq problem when copying code from an executable to a process memor
 then figure out what function it is calling in its .plt section, find the same in the target process
 
 https://systemoverlord.com/2017/03/19/got-and-plt-for-pwning.html
+
+using qemu-kvm to test with 18.04 server
+on the host those 2 commands can be used to get the ip address of the VM (for SSH, don't forget to install openssh-server on the VM)
+sudo virsh list
+sudo virsh domifaddr [number_from_the_first_command]
