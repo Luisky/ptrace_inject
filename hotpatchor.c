@@ -16,7 +16,20 @@ void init_ptrace_attach(pid_t pid)
         exit(EXIT_FAILURE);
     }
 
-    continue_exec(pid, true); // RESTART THE TRACEE
+    //PTRACE_ATTACH should stop the process;
+    //continue_exec(pid, true); // RESTART THE TRACEE
+
+    int wstatus;
+
+    waitpid(pid, &wstatus, 0); // this stops the tracing program, can be replaced with: wait()
+    if (WIFSTOPPED(wstatus)) {
+        printf("process was stopped by signal number %d\n", WSTOPSIG(wstatus));
+        /*if (WSTOPSIG(wstatus) == 11) {
+            perror("SIGSEGV");
+            exit(EXIT_FAILURE);
+        }*/
+    }
+
 
     return;
 }
@@ -28,7 +41,7 @@ void write_trap_at_addr(pid_t pid, Arg *arg)
     uint8_t int3 = (char)0xCC;
 
     //process must be stopped in order to be able to read mem so:
-    kill((int)pid, SIGSTOP); // we send another SIGSTOP to be able to write in /proc/[pid]/mem
+    //kill((int)pid, SIGSTOP); // we send another SIGSTOP to be able to write in /proc/[pid]/mem
 
     fd = open(arg->path_to_mem, O_RDWR);
 
@@ -235,6 +248,10 @@ void exec_posix_melalign(pid_t pid, Arg *arg)
     struct user_regs_struct registers;
     ptrace(PTRACE_GETREGS, pid, NULL, &(arg->user_regs));
     registers = arg->user_regs;
+
+    printf("\t\t\t\t\tvalue of rip %llx\n", registers.rip);
+    printf("\t\t\t\t\tvalue of rdi %lld\n", registers.rdi);
+    printf("\t\t\t\t\tvalue of rsi %lld\n", registers.rsi);
 
     /*
      * Getting the path and offset in mem of libc
@@ -641,7 +658,7 @@ void path_and_start_addr_of_libc(pid_t pid, char *libc_path, unsigned long long 
         if(path_or_desc[0] == '/') {
             char * cp = strrchr(path_or_desc, '/');
             cp++; // move to first char instead of /
-            if ( (strcmp(cp, "libc-2.28.so") == 0) && (strcmp(perms, "r-xp")) == 0 ) { //executable code
+            if ( (strcmp(cp, "libc-2.28.so") == 0) && (strcmp(perms, "r-xp")) == 0 ) { //executable code //TODO: find a method with libc.so.6 to find the path (for portability)
                 strcpy(libc_path, path_or_desc);
                 *libc_addr = addr_start;
             }
