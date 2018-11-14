@@ -1,0 +1,20 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/luisky/Téléchargements/sel_tp/decoy.c
+stdio.h
+-
+stdlib.h
+-
+stdbool.h
+-
+unistd.h
+-
+limits.h
+-
+

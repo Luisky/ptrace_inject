@@ -1,0 +1,22 @@
+[
+{
+  "directory": "/home/luisky/Téléchargements/sel_tp/build",
+  "command": "/usr/bin/gcc-8   -g   -std=gnu11 -o CMakeFiles/TEST_ELF.dir/test_elf.c.o   -c /home/luisky/Téléchargements/sel_tp/test_elf.c",
+  "file": "/home/luisky/Téléchargements/sel_tp/test_elf.c"
+},
+{
+  "directory": "/home/luisky/Téléchargements/sel_tp/build",
+  "command": "/usr/bin/gcc-8   -g   -std=gnu11 -o CMakeFiles/SEL_TP.dir/main.c.o   -c /home/luisky/Téléchargements/sel_tp/main.c",
+  "file": "/home/luisky/Téléchargements/sel_tp/main.c"
+},
+{
+  "directory": "/home/luisky/Téléchargements/sel_tp/build",
+  "command": "/usr/bin/gcc-8   -g   -std=gnu11 -o CMakeFiles/SEL_TP.dir/hotpatchor.c.o   -c /home/luisky/Téléchargements/sel_tp/hotpatchor.c",
+  "file": "/home/luisky/Téléchargements/sel_tp/hotpatchor.c"
+},
+{
+  "directory": "/home/luisky/Téléchargements/sel_tp/build",
+  "command": "/usr/bin/gcc-8   -g   -std=gnu11 -o CMakeFiles/DECOY.dir/decoy.c.o   -c /home/luisky/Téléchargements/sel_tp/decoy.c",
+  "file": "/home/luisky/Téléchargements/sel_tp/decoy.c"
+}
+]

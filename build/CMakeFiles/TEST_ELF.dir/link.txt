@@ -1,0 +1,1 @@
+/usr/bin/gcc-8 -g   CMakeFiles/TEST_ELF.dir/test_elf.c.o  -o TEST_ELF -lelf 

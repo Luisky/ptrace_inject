@@ -1,0 +1,1 @@
+/usr/bin/gcc-8 -g   CMakeFiles/SEL_TP.dir/main.c.o CMakeFiles/SEL_TP.dir/hotpatchor.c.o  -o SEL_TP 

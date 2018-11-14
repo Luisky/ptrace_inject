@@ -1,0 +1,5 @@
+/home/luisky/Téléchargements/sel_tp/build/CMakeFiles/edit_cache.dir
+/home/luisky/Téléchargements/sel_tp/build/CMakeFiles/TEST_ELF.dir
+/home/luisky/Téléchargements/sel_tp/build/CMakeFiles/SEL_TP.dir
+/home/luisky/Téléchargements/sel_tp/build/CMakeFiles/rebuild_cache.dir
+/home/luisky/Téléchargements/sel_tp/build/CMakeFiles/DECOY.dir
