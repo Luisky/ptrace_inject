@@ -62,6 +62,8 @@ void write_trap_at_addr(pid_t pid, Arg *arg)
 
 /*
  * In order to use this function the process must be stopped
+ * If everything is working according to plan rip should be equal to func_addr+1
+ * if not ... well ABORT !
  *
  */
 void write_indirect_call_at_rip(pid_t pid, Arg *arg)
@@ -74,15 +76,15 @@ void write_indirect_call_at_rip(pid_t pid, Arg *arg)
 
     fd = open(arg->path_to_mem, O_RDWR);
 
-    lseek(fd, (long) arg->func_addr+1, SEEK_SET); // SUPER IMPORTANT
+    lseek(fd, (long) arg->user_regs.rip, SEEK_SET); // SUPER IMPORTANT
     read(fd, arg->old_buf, 3);
 
-    lseek(fd, (long) arg->func_addr+1, SEEK_SET);
+    lseek(fd, (long) arg->user_regs.rip, SEEK_SET);
     br = write(fd, buf, 3);
 
     if (br <= 0) perror("write");
     close(fd);
-    printf("%ld byte(s) written at address 0x%llx\n", br, arg->func_addr+1);
+    printf("%ld byte(s) written at address 0x%llx\n", br, arg->user_regs.rip);
 
     return;
 }
@@ -102,7 +104,7 @@ void restore_mem(pid_t pid, Arg *arg)
     printf("%ld byte(s) written\n", br);
     printf("char: %x \n", arg->old_byte);
 
-    lseek(fd, (long) arg->func_addr+1, SEEK_SET);
+    lseek(fd, (long) arg->user_regs.rip, SEEK_SET);
     br = write(fd, arg->old_buf, 3);
     printf("%ld byte(s) written\n", br);
     printf("char: %x %x %x\n", arg->old_buf[0], arg->old_buf[1], arg->old_buf[2]);
@@ -133,7 +135,6 @@ void exec_func_with_val(pid_t pid, Arg *arg)
     registers.rax = arg->opti_func_addr;
     registers.rsi = 0;
     registers.rdi = 1;
-    registers.rip = arg->func_addr+1;
 
     ptrace(PTRACE_SETREGS, pid, NULL, &registers);
     write_indirect_call_at_rip(pid, arg);
@@ -204,7 +205,6 @@ void exec_func_with_ptr(pid_t pid, Arg *arg)
     registers.rax = arg->opti_func_addr;
     registers.rdi = addr_a;
     registers.rsi = addr_b;
-    registers.rip = arg->func_addr+1;
 
     ptrace(PTRACE_SETREGS, pid, NULL, &registers);
     write_indirect_call_at_rip(pid, arg);
@@ -284,8 +284,7 @@ void exec_posix_melalign(pid_t pid, Arg *arg)
      */
     /*registers.rax = aligned_alloc_address;
     registers.rdi = pagesize;
-    registers.rsi = mem_size;
-    registers.rip = arg->func_addr+1;*/
+    registers.rsi = mem_size;*/
 
     /*
      * Tests with posix_memalign
@@ -337,7 +336,6 @@ void exec_posix_melalign(pid_t pid, Arg *arg)
     registers.rdi = addr_start_heap;
     registers.rsi = pagesize;
     registers.rdx = mem_size;
-    registers.rip = arg->func_addr+1;
 
     unsigned long long int old_data_heap = ptrace(PTRACE_PEEKDATA, pid, addr_start_heap, NULL);
 
@@ -382,7 +380,6 @@ void exec_posix_melalign(pid_t pid, Arg *arg)
     registers.rdi = new_data_heap;
     registers.rsi = mem_size-1;
     registers.rdx = PROT_READ | PROT_WRITE | PROT_EXEC;
-    registers.rip = arg->func_addr+1;
 
     ptrace(PTRACE_SETREGS, pid, NULL, &registers);
     write_indirect_call_at_rip(pid, arg);
@@ -429,7 +426,6 @@ void exec_posix_melalign(pid_t pid, Arg *arg)
     // TODO: for testing purposes, restore old_rsi & old_rdi
     registers.rdi = 4096;
     registers.rsi = 4096;
-    registers.rip = arg->func_addr+1;
 
     ptrace(PTRACE_SETREGS, pid, NULL, &registers);
     write_indirect_call_at_rip(pid, arg);
