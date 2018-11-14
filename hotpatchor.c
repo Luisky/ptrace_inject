@@ -196,7 +196,7 @@ void exec_func_with_ptr(pid_t pid, Arg *arg)
 
     FILE *fp_maps = fopen(path, "r");
     while (getline(&line, &len, fp_maps) != -1) {
-        sscanf(line, "%llx-%llx %s %lx %d:%d %d %s", &addr_start, &addr_end, perms, &offset, (int *) &dev_maj, (int *) &dev_min, &inode, path_or_desc);
+        sscanf(line, "%llx-%llx %s %lx %x:%x %d %s", &addr_start, &addr_end, perms, &offset, (int *) &dev_maj, (int *) &dev_min, &inode, path_or_desc);
         if(strcmp(path_or_desc, "[heap]") == 0) addr_start_heap = addr_start;
     }
 
