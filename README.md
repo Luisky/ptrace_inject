@@ -5,12 +5,8 @@ how to use:
 echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
 
 launch: ./DECOY
-then: ps -aux | grep DECOY
-finally: ./SEL [pid] [func_name]
+then: ps -aux | grep DECOYfinally: ./SEL [pid] [func_name]
 
-for now writing int3 (or 0xCC) causes a SIGTRAP:
-- followed by a SIGSEGV if sigaction is activated (with sigaction())
-- if not it produces this: "Trappe pour point d'arrêt et de trace (core dumped)"
 
 Doc on ELF:
 https://en.wikipedia.org/wiki/Executable_and_Linkable_Format
@@ -22,7 +18,7 @@ compile with the -lelf flag / cmake: add_executable(TARGET files) and target_lin
 
 -considering using aligned_alloc() instead of posix_memalign() because of the compatibility with C11 standard, CMake doesn't support C17/C18 as of now.
 -there is no symbol named aligned_alloc() in libc the function used is __libc_memalign, aligned_alloc() is a weak alias in sources.
--with that in mind I'll try both
+
 
 (this repo host gnu-libc implementation)
 in https://github.com/lattera/glibc/blob/master/malloc/malloc.c line 3313
@@ -48,3 +44,8 @@ to fix the callq problem when copying code from an executable to a process memor
 then figure out what function it is calling in its .plt section, find the same in the target process
 
 https://systemoverlord.com/2017/03/19/got-and-plt-for-pwning.html
+
+using qemu-kvm to test with 18.04 server
+on the host those 2 commands can be used to get the ip address of the VM (for SSH, don't forget to install openssh-server on the VM)
+sudo virsh list
+sudo virsh domifaddr [number_from_the_first_command]

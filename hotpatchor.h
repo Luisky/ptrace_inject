@@ -35,30 +35,32 @@ struct Arg {
     unsigned long long int func_addr;
     unsigned long long int opti_func_addr;
     char path_to_mem[STR_SIZE];
-    unsigned char old_byte;
-    unsigned char old_buf[3];
-    unsigned long long int old_rsi;
-    unsigned long long int old_rdi;
+    uint8_t old_first_4_bytes[4];
+    uint8_t old_12_remaining_bytes[12];
 };
 
-pid_t get_pid_from_argv(char *argv_pid);
+
 void init_hotpatchor(pid_t pid, char *func_name, char* path_mem, unsigned long long int *func_addr);
 void init_ptrace_attach(pid_t pid);
 
-void write_trap_at_addr(pid_t pid, Arg *arg);
-void write_indirect_call_at_rip(pid_t pid, Arg *arg);
+void write_trap_and_jump(pid_t pid, Arg *arg);
 void restore_mem(pid_t pid, Arg *arg);
 
-void exec_func_with_val(pid_t pid, Arg *arg);
-void exec_func_with_ptr(pid_t pid, Arg *arg);
-void exec_posix_melalign(pid_t pid, Arg *arg);
+void hotpatch(pid_t pid, Arg *arg);
 
+pid_t get_pid_from_argv(char *argv_pid);
 long get_maps_addr(pid_t pid);
+
 unsigned long long int get_offset_func(char* proc_name,char* func_name);
 unsigned long long int get_offset_libc_func(char *lib_path, char * func_name);
-char* get_proc_name(pid_t pid);
+unsigned long long int get_start_addr_heap(pid_t pid);
 unsigned long long int get_func_addr(pid_t pid, char* func_name);
+
+char* get_proc_name(pid_t pid);
+
 void continue_exec(pid_t pid, bool wait);
+void path_and_start_addr_of_libc(pid_t pid, char *libc_path, unsigned long long int *libc_addr);
 
 int challenge3_func(int a, int b);
+void end_challeng3_func();
 

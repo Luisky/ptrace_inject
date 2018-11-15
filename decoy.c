@@ -1,7 +1,3 @@
-//
-// Created by luisky on 27/09/18.
-//
-
 /*
  * This program was created to be used for testing
  * the ptrace() system call
@@ -13,8 +9,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <limits.h>
-#include <signal.h>
-#include <string.h>
+#include <sys/mman.h>
 
 
 int add_int(int a, int b)
@@ -23,28 +18,10 @@ int add_int(int a, int b)
     return a + b;
 }
 
-int mod_a_b(int *a, int *b)
-{
-    printf("mod_a_b\n");
-    *a = 0;
-    *b = 1;
-    printf("a: %d, b: %d\n", *a, *b);
-    printf("a_addr: %p, b_addr: %p\n", a, b);
-
-    return 256;
-}
-
-int opti_add_int(int a, int b)
-{
-    printf("opti_add_int\n");
-    return a + b;
-}
-
 int main()
 {
     printf("PID %d\n\n", getpid());
-    printf("address of posix_memalign: %p\n", posix_memalign);
-    printf("address of aligned_alloc: %p\n", aligned_alloc);
+
     int a = 5;
     int b = 10;
 
@@ -61,5 +38,4 @@ int main()
     }
 
     return EXIT_SUCCESS;
-
 }
