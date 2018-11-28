@@ -1,3 +1,6 @@
+#ifndef SEL_TP_HOTPATCHOR_H
+#define SEL_TP_HOTPATCHOR_H
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -13,12 +16,20 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
+#include <dirent.h>
+#include <err.h>
+#include <stdint.h>
 
 // not useful
-#include <libelf.h>
+//#include <libelf.h>
 
-#define BASE_10 10
 #define STR_SIZE 64
+
+#define HEAP        "[heap]"
+#define STACK       "[stack]"
+#define VVAR        "[vvar]"
+#define VDSO        "[vsdo]"
+#define VSYSCALL    "[vsyscall]"
 
 /*
  * kill -l
@@ -32,35 +43,44 @@ typedef struct Arg Arg;
 
 struct Arg {
     struct user_regs_struct user_regs;
-    unsigned long long int func_addr;
-    unsigned long long int opti_func_addr;
+    uint64_t func_addr;
+    uint64_t allocated_mem;
+    uint8_t backup[16];
+    uint8_t old_byte;
     char path_to_mem[STR_SIZE];
-    uint8_t old_first_4_bytes[4];
-    uint8_t old_12_remaining_bytes[12];
+    char self_prog_path[STR_SIZE];
+};
+
+union endian64_u { // for endianess
+    uint64_t val;
+    uint8_t each[8];
+};
+
+union endian32_u { // for endianess
+    uint32_t val;
+    uint8_t each[4];
 };
 
 
-void init_hotpatchor(pid_t pid, char *func_name, char* path_mem, unsigned long long int *func_addr);
+pid_t get_pid_from_argv(char *argv1);
+void hotwait(pid_t pid);
+
+void init_hotpatchor(pid_t pid, Arg *arg, char *argv1, char *argv2);
 void init_ptrace_attach(pid_t pid);
 
-void write_trap_and_jump(pid_t pid, Arg *arg);
-void restore_mem(pid_t pid, Arg *arg);
+void write_trap_only(pid_t pid, Arg *arg);
+void write_trap_and_syscall(pid_t pid, Arg *arg);
 
 void hotpatch(pid_t pid, Arg *arg);
+void restore_mem(pid_t pid, Arg *arg);
 
-pid_t get_pid_from_argv(char *argv_pid);
-long get_maps_addr(pid_t pid);
+uint64_t get_addr_from_proc_maps(pid_t pid, char *str, char *lib_path);
+uint64_t get_symbol_offset(char *exec_path, char * sym_name, bool dynamic);
+uint64_t get_func_addr(pid_t pid, char* lib_or_exec, char* func_name, bool dyn);
 
-unsigned long long int get_offset_func(char* proc_name,char* func_name);
-unsigned long long int get_offset_libc_func(char *lib_path, char * func_name);
-unsigned long long int get_start_addr_heap(pid_t pid);
-unsigned long long int get_func_addr(pid_t pid, char* func_name);
-
-char* get_proc_name(pid_t pid);
-
-void continue_exec(pid_t pid, bool wait);
-void path_and_start_addr_of_libc(pid_t pid, char *libc_path, unsigned long long int *libc_addr);
+void tid_buf_and_number(pid_t pid, pid_t **tid_buf, size_t *tid_nb);
 
 int challenge3_func(int a, int b);
 void end_challeng3_func();
 
+#endif //SEL_TP_HOTPATCHOR_H

@@ -7,6 +7,8 @@ echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
 launch: ./DECOY
 then: ps -aux | grep DECOYfinally: ./SEL [pid] [func_name]
 
+This program cannot be used on stripped executable, without the symbol table other mechanisms
+have to be used (knowing the code of the function to be replaced we could pattern matching).
 
 Doc on ELF:
 https://en.wikipedia.org/wiki/Executable_and_Linkable_Format
@@ -49,3 +51,20 @@ using qemu-kvm to test with 18.04 server
 on the host those 2 commands can be used to get the ip address of the VM (for SSH, don't forget to install openssh-server on the VM)
 sudo virsh list
 sudo virsh domifaddr [number_from_the_first_command]
+
+https://en.wikipedia.org/wiki/X86_instruction_listings
+LOCK is 0xF0
+
+22:26 Saturday 24th, November 2018 : Ok, en essayant de libérer la memoire dans le tas avec un appel a free() je me suis rendu compte
+que cela ne faisait ... rien ! je me suis demandé si cela ne venait pas de mprotect, puis je suis tombé sur un thread SO disant que mmap
+permettait de faire la meme chose que aligned_alloc/posix_memalign et mprotect, puis je me suis dit, tient au lieu de parser la sortie
+de objdump pourquoi pas directement faire un appel systeme, quitte a écrire de l'assembleur autant directement parler avec le noyau !
+du coup au boulot, je vais essayer d'appeler mmap en utilisant l'instruction syscall/0x0F 0x05 (https://www.felixcloutier.com/x86/SYSCALL.html)
+au lieu d'utiliser 0xFF 0xD0. Et liberer la memoire avec unmap !
+
+syscalls list : https://filippo.io/linux-syscall-table/
+
+23:24 Saturday 24th, November 2018: Testé et validé, ça fonctionne, mmap et munmap ont les effets désirés, le code est du coup plus court.
+en théorie il devrait etre plus rapide puisqu'il y a un seul appel systeme au lieu de 2 appels de fonctions.
+
+utilisation de nm et nm -D a la place d'objdump

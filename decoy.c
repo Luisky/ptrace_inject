@@ -20,8 +20,6 @@ int add_int(int a, int b)
 
 int main()
 {
-    printf("PID %d\n\n", getpid());
-
     int a = 5;
     int b = 10;
 

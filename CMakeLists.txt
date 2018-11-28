@@ -5,8 +5,15 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_BUILD_TYPE Debug)
 
 add_executable(SEL_TP main.c hotpatchor.h hotpatchor.c)
+
 add_executable(DECOY decoy.c)
 #target_compile_options(DECOY PRIVATE -fno-pie)
 #target_link_libraries(DECOY -no-pie)
+
 add_executable(TEST_ELF test_elf.c)
 target_link_libraries(TEST_ELF elf)
+
+add_executable(MULT multithread.c)
+target_link_libraries(MULT pthread)
+
+add_executable(C5 main_c5.c hotpatchor.h hotpatchor.c)

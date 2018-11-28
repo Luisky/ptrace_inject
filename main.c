@@ -9,34 +9,31 @@
 
 int main(int argc, char **argv) {
 
-    if (argc != 3) {
-        fprintf(stderr, "You didn't provide the right arguments: %s [pid] [func_name_to_replace]\n", argv[0]);
-        exit(EXIT_FAILURE);
-    }
-
-    pid_t pid;
-    char* func_name;
+    if (argc != 3) errx(EXIT_FAILURE, "You didn't provide the right arguments: %s [pid] [func_name_to_replace]\n", argv[0]);
 
     Arg arg;
+    pid_t pid;
 
     pid = get_pid_from_argv(argv[1]);
-    func_name = argv[2];
+    init_hotpatchor(pid, &arg, argv[1], argv[2]);
 
-    init_hotpatchor(pid, func_name, arg.path_to_mem, &(arg.func_addr));
+    printf("\npid traced : %d\n\n", pid);
+
     init_ptrace_attach(pid);
 
-    write_trap_and_jump(pid, &arg);
+    write_trap_and_syscall(pid, &arg);
+    ptrace(PTRACE_CONT, pid, NULL, NULL);
+    hotwait(pid);
 
     hotpatch(pid, &arg);
-    continue_exec(pid, false); //here there's no waiting because our process won't hit another 0xCC normally
-
+    ptrace(PTRACE_CONT, pid, NULL, NULL); // no wait because there is no trap left
 
     printf("finished\n");
 
-    sleep(5);
+    sleep(3);
 
     restore_mem(pid, &arg);
-    continue_exec(pid, false);
+    ptrace(PTRACE_CONT, pid, NULL, NULL); // no wait because there is no trap left
 
     ptrace(PTRACE_DETACH, pid, NULL, NULL);
 
