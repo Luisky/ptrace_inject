@@ -3,6 +3,7 @@
  * the ptrace() system call
  *
  */
+#define _POSIX_C_SOURCE 200112L
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,6 +23,10 @@ int main()
 {
     int a = 5;
     int b = 10;
+
+    printf("func alligned_alloc %p\n", aligned_alloc);
+    printf("func posix_memalign %p\n", posix_memalign);
+    printf("func mprotect       %p\n", mprotect);
 
     while(true) {
 

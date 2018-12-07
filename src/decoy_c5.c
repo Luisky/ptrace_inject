@@ -24,7 +24,7 @@
 #include <stdint.h>
 #include <omp.h>
 
-#define NB_THREAD 4
+#define NB_THREAD 1
 
 int val = 0;
 pthread_mutex_t mutex;
@@ -41,7 +41,7 @@ void increment()
 void funky_cop()
 {
     printf("tid %ld started\n", syscall(SYS_gettid));
-    for (int i = 0; i < 75000000; ++i) increment();
+    for (int i = 0; i < 750000000; ++i) increment();
     //while (true) increment();
     return;
 }
@@ -50,12 +50,15 @@ int main()
 {
     pthread_t threads[NB_THREAD];
     pthread_mutex_init(&mutex, NULL);
+    printf("val addr 0x%lx\n", &val);
 
     for (size_t i = 0; i < NB_THREAD; i++) pthread_create(&threads[i], NULL, (void * (*)(void *)) funky_cop, NULL);
     for (size_t i = 0; i < NB_THREAD; i++) pthread_join(threads[i], NULL);
 
     pthread_mutex_destroy(&mutex);
     printf("val : %d\n", val);
+
+    //__asm__("int3");
 
     return EXIT_SUCCESS;
 }

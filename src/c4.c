@@ -1,5 +1,4 @@
-#include "hotpatchor.h"
-
+#include "hotpatchor/hotpatchor.h"
 /*
  * Could use AS2_TP5 (multithreaded matrix calculations) /home/luisky/CLionProjects/L3_CDA_C/AS2_TP5
  * or a small decoy program which calls a function (maybe better at first)
@@ -9,7 +8,7 @@
 
 int main(int argc, char **argv) {
 
-    if (argc != 3) errx(EXIT_FAILURE, "You didn't provide the right arguments: %s [pid] [func_name_to_replace]\n", argv[0]);
+    if (argc != 3) errx(EXIT_FAILURE, "You didn't provide the right arguments: %s [prog_name] [func_name_to_replace]\n", argv[0]);
 
     Arg arg;
     pid_t pid;

@@ -20,7 +20,7 @@ void hotwait(pid_t pid)
 {
     int wstatus;
     waitpid(pid, &wstatus, 0);
-    if (WIFSTOPPED(wstatus)) printf("process was stopped by signal number %d\n", WSTOPSIG(wstatus));
+    if (WIFSTOPPED(wstatus)) printf("process %d was stopped by signal number %d\n", pid, WSTOPSIG(wstatus));
 
     return;
 }
@@ -28,8 +28,22 @@ void hotwait(pid_t pid)
 
 void init_hotpatchor(pid_t pid, Arg *arg, char *argv1, char *argv2)
 {
+    char * path_to_ptrace_scope = "/proc/sys/kernel/yama/ptrace_scope";
+    uint8_t ptrace_scope_val = 0;
+    
+    int fd = open(path_to_ptrace_scope, O_RDONLY);
+    if(fd == -1) err(EXIT_FAILURE, "open failed");
+    ssize_t br = read(fd, &ptrace_scope_val, sizeof(uint8_t));
+    if(br == -1) err(EXIT_FAILURE, "read failed");
+    close(fd);
+
+    if(ptrace_scope_val != '0') errx(EXIT_FAILURE, "ptrace_scope is %d should be 0\nuse \"echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope\"", ptrace_scope_val);
+
     sprintf(arg->path_to_mem, "/proc/%d/mem", (int)pid);
-    readlink("/proc/self/exe", arg->self_prog_path, STR_SIZE);
+    br = readlink("/proc/self/exe", arg->self_prog_path, STR_SIZE);
+    if(br == -1) err(EXIT_FAILURE, "readlink failed");
+
+    *((arg->self_prog_path)+br) = '\0'; // readlink() doesnt apppend null byte see: man 2 readlink
     arg->func_addr = get_func_addr(pid, argv1, argv2, false);
     printf("addr of %s : 0x%lx\n", argv2, arg->func_addr);
 
@@ -38,12 +52,15 @@ void init_hotpatchor(pid_t pid, Arg *arg, char *argv1, char *argv2)
 
 void init_ptrace_attach(pid_t pid)
 {
-    if (ptrace(PTRACE_ATTACH, pid, NULL, NULL) == -1) {
-        fprintf(stderr, "Ptrace failed\n"); //TODO: check errno
-        exit(EXIT_FAILURE);
-    }
-
+    if (ptrace(PTRACE_ATTACH, pid, NULL, NULL) == -1) err(EXIT_FAILURE, "Ptrace_failed");
     hotwait(pid);
+
+    return;
+}
+
+void init_ptrace_seize(pid_t pid)
+{
+    if (ptrace(PTRACE_SEIZE, pid, NULL, NULL) == -1) err(EXIT_FAILURE, "Ptrace_failed");
 
     return;
 }
@@ -80,11 +97,11 @@ void write_trap_and_syscall(pid_t pid, Arg *arg)
 
     fd = open(arg->path_to_mem, O_RDWR);
 
-    if (lseek(fd, (off_t) arg->func_addr, SEEK_SET) < 0) perror("lseek");
-    if (read(fd, arg->backup, 4) < 0) perror("read");
+    if (lseek(fd, (off_t) arg->func_addr, SEEK_SET) < 0) err(EXIT_FAILURE,"lseek");
+    if (read(fd, arg->backup, 4) < 0) err(EXIT_FAILURE,"read");;
 
-    if (lseek(fd, (off_t) arg->func_addr, SEEK_SET) < 0) perror("lseek");
-    if ( (br = write(fd, buf, 4)) < 0) perror("write");
+    if (lseek(fd, (off_t) arg->func_addr, SEEK_SET) < 0) err(EXIT_FAILURE,"lseek");;
+    if ( (br = write(fd, buf, 4)) < 0) err(EXIT_FAILURE,"write");;
 
     close(fd); // this seals the deal and should send SIGTRAP after we send SIGCONT / or PTRACE_CONT
     printf("%ld byte(s) written at address 0x%lx\n", br, arg->func_addr);
@@ -148,9 +165,11 @@ void hotpatch(pid_t pid, Arg *arg)
     ptrace(PTRACE_SETREGS, pid, NULL, &(arg->user_regs));
 
     // write the address in the right order
-    union endian64_u addr;
+    /*union endian64_u addr;
     addr.val = arg->allocated_mem;
-    for (int i = 0; i < 8; ++i) trampoline[2+i] = addr.each[i];
+    for (int i = 0; i < 8; ++i) trampoline[2+i] = addr.each[i];*/
+
+    *((uint64_t *) (trampoline+2)) = arg->allocated_mem;
 
     lseek(fd, (off_t) (arg->func_addr)+4, SEEK_SET);
     br = read(fd, (arg->backup)+4, 12);

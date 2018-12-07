@@ -1,4 +1,4 @@
-#include "hotpatchor.h"
+#include "hotpatchor/hotpatchor.h"
 
 /*
  * Could use AS2_TP5 (multithreaded matrix calculations) /home/luisky/CLionProjects/L3_CDA_C/AS2_TP5
@@ -10,7 +10,7 @@
 
 int main(int argc, char **argv) {
 
-    if (argc != 3) errx(EXIT_FAILURE, "You didn't provide the right arguments: %s [pid] [func_name_to_replace]\n", argv[0]);
+    if (argc != 3) errx(EXIT_FAILURE, "You didn't provide the right arguments: %s [prog_name] [func_name_to_replace]\n", argv[0]);
 
     Arg arg;
     pid_t pid;
@@ -19,8 +19,6 @@ int main(int argc, char **argv) {
     init_hotpatchor(pid, &arg, argv[1], argv[2]);
 
     printf("\npid traced : %d\n\n", pid);
-
-    init_ptrace_attach(pid);
 
     /*
      * we have to open /proc/[pid]/task folder and list the entries, removing the one corresponding to the main thread
@@ -33,10 +31,21 @@ int main(int argc, char **argv) {
 
     tid_buf_and_number(pid, &tid_buf, &tid_nb);
 
-    printf("tid(s):\n");
+    printf("tid(s) %ld:\n", tid_nb);
     for (int i = 0; i < tid_nb; ++i) printf("%d\n", tid_buf[i]);
 
-    for (int i = 0; i < tid_nb; ++i) init_ptrace_attach((pid_t) tid_buf[i]);
+    /*
+     * Normally it's a group stop
+     */
+    //kill(pid, SIGSTOP);
+    init_ptrace_attach(pid);
+    for (int i = 0; i < tid_nb; ++i) init_ptrace_attach(tid_buf[i]);
+
+    /*hotwait(pid);
+    for (int i = 0; i < tid_nb; ++i) hotwait((pid_t) tid_buf[i]);
+
+    init_ptrace_seize(pid);
+    for (int i = 0; i < tid_nb; ++i) init_ptrace_seize((pid_t) tid_buf[i]);*/
 
     for (int i = 0; i < tid_nb; ++i) {
         struct user_regs_struct regs;
@@ -45,22 +54,14 @@ int main(int argc, char **argv) {
         printf("rip value of %d : %llx\n", i, regs.rip);
     }
 
-
     write_trap_only(pid, &arg);
-    // for main thread
-    ptrace(PTRACE_CONT, pid, NULL, NULL);
-    /*for (int i = 0; i < tid_nb; ++i) {
-        continue_exec(tid_buf[i], true);
-        printf("first continue %d\n",i);
-    }*/
 
+    //kill(pid, SIGCONT);
+    ptrace(PTRACE_CONT, pid, NULL, NULL);
     for (int i = 0; i < tid_nb; ++i) ptrace(PTRACE_CONT, tid_buf[i], NULL, NULL);
 
-    for (int i = 0; i < tid_nb; ++i) {
-        int wstatus = 0;
-        waitpid(pid, &wstatus, 0);
-        if (WIFSTOPPED(wstatus)) printf("process was stopped by signal number %d\n", WSTOPSIG(wstatus));
-    }
+    for (int i = 0; i < tid_nb; ++i) hotwait(tid_buf[i]);
+     printf("DOES THIS WORK\n");
 
     uint64_t rip = 0;
     for (int i = 0; i < tid_nb; ++i) {
@@ -80,11 +81,13 @@ int main(int argc, char **argv) {
     ssize_t br = 0;
     int fd = open(arg.path_to_mem, O_RDWR);
     uint8_t replacement_code[8] = { 0xF0, 0xFF, 0x05, 0x00, 0x00, 0x00, 0x00, 0xC3 };
-    uint64_t diff = addr_val - (rip + 7);
+    uint32_t diff = addr_val - (rip + 7);
 
-    union endian64_u addr;
+    /*union endian64_u addr;
     addr.val = (uint32_t) diff;
-    for (int i = 0; i < 4; ++i) replacement_code[3+i] = addr.each[i];
+    for (int i = 0; i < 4; ++i) replacement_code[3+i] = addr.each[i];*/
+    printf("val addr 0x%lx\n", diff);
+    *((uint32_t *) (replacement_code+3)) = diff;
 
     if (lseek(fd, (off_t) arg.func_addr, SEEK_SET) < 0) perror("lseek");
     if ( (br = write(fd, replacement_code, 8)) < 0) perror("write");

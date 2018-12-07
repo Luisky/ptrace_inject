@@ -1,6 +1,8 @@
 #ifndef SEL_TP_HOTPATCHOR_H
 #define SEL_TP_HOTPATCHOR_H
 
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -23,7 +25,7 @@
 // not useful
 //#include <libelf.h>
 
-#define STR_SIZE 64
+#define STR_SIZE 256
 
 #define HEAP        "[heap]"
 #define STACK       "[stack]"
@@ -67,6 +69,7 @@ void hotwait(pid_t pid);
 
 void init_hotpatchor(pid_t pid, Arg *arg, char *argv1, char *argv2);
 void init_ptrace_attach(pid_t pid);
+void init_ptrace_seize(pid_t pid);
 
 void write_trap_only(pid_t pid, Arg *arg);
 void write_trap_and_syscall(pid_t pid, Arg *arg);

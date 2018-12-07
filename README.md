@@ -22,7 +22,7 @@ compile with the -lelf flag / cmake: add_executable(TARGET files) and target_lin
 -there is no symbol named aligned_alloc() in libc the function used is __libc_memalign, aligned_alloc() is a weak alias in sources.
 
 
-(this repo host gnu-libc implementation)
+(this repository host gnu-libc implementation)
 in https://github.com/lattera/glibc/blob/master/malloc/malloc.c line 3313
 /* For ISO C11.  */
 weak_alias (__libc_memalign, aligned_alloc)
