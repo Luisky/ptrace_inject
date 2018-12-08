@@ -8,7 +8,6 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <wait.h>
-#include <errno.h>
 #include <limits.h>
 #include <string.h>
 #include <fcntl.h>

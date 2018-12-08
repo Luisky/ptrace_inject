@@ -1,3 +1,5 @@
+# gcc -c test.s
+# ld -o test test.o
 .data
 hello:
     .string "hello, world\n"
@@ -13,6 +15,8 @@ _start:
     mov $hello, %rsi;
     mov $13, %rdx;
     syscall
+    movq %rsp, %rax;
+    lock incq (%rax);
     mov $60, %rax;
     mov $0, %rdi;
     syscall
