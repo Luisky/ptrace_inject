@@ -50,7 +50,7 @@ sudo virsh domifaddr [number_from_the_first_command]
 https://en.wikipedia.org/wiki/X86_instruction_listings
 LOCK is 0xF0
 
-22:26 Saturday 24th, November 2018 : (Luis) Ok, en essayant de libérer la memoire dans le tas avec un appel a free() je me suis rendu compte
+22:26 Saturday 24th, November 2018 : Ok, en essayant de libérer la memoire dans le tas avec un appel a free() je me suis rendu compte
 que cela ne faisait ... rien ! je me suis demandé si cela ne venait pas de mprotect, puis je suis tombé sur un thread SO disant que mmap
 permettait de faire la meme chose que aligned_alloc/posix_memalign et mprotect, puis je me suis dit, tient au lieu de parser la sortie
 de objdump pourquoi pas directement faire un appel systeme, quitte a écrire de l'assembleur autant directement parler avec le noyau !
