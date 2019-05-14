@@ -59,7 +59,7 @@ au lieu d'utiliser 0xFF 0xD0. Et liberer la memoire avec unmap !
 
 syscalls list : https://filippo.io/linux-syscall-table/
 
-23:24 Saturday 24th, November 2018: (Luis) Testé et validé, ça fonctionne, mmap et munmap ont les effets désirés, le code est du coup plus court.
+23:24 Saturday 24th, November 2018: Testé et validé, ça fonctionne, mmap et munmap ont les effets désirés, le code est du coup plus court.
 en théorie il devrait etre plus rapide puisqu'il y a un seul appel systeme au lieu de 2 appels de fonctions.
 
 utilisation de nm et nm -D a la place d'objdump
