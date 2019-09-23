@@ -1,8 +1,2 @@
 .vscode/
 build/
-.idea/
-cmake-build-debug/
-rapport/rapport_sel.aux
-rapport/*
-!rapport/rapport_sel.pdf
-!rapport/rapport_sel.tex
