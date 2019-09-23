@@ -1,5 +1,5 @@
-# gcc -c test.s
-# ld -o test test.o
+# gcc -c movq_and_lock.s
+# ld -o movq_and_lock movq_and_lock.o
 .data
 hello:
     .string "hello, world\n"

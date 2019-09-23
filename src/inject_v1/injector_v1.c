@@ -1,14 +1,15 @@
-#include "hotpatchor/hotpatchor.h"
+#include "lib/hotpatchor/hotpatchor.h"
 /*
  * Could use AS2_TP5 (multithreaded matrix calculations) /home/luisky/CLionProjects/L3_CDA_C/AS2_TP5
  * or a small decoy program which calls a function (maybe better at first)
  * __asm__("int3"); //0xCC
  */
 
+int main(int argc, char **argv)
+{
 
-int main(int argc, char **argv) {
-
-    if (argc != 3) errx(EXIT_FAILURE, "You didn't provide the right arguments: %s [prog_name] [func_name_to_replace]\n", argv[0]);
+    if (argc != 3)
+        errx(EXIT_FAILURE, "You didn't provide the right arguments: %s [prog_name] [func_name_to_replace]\n", argv[0]);
 
     Arg arg;
     pid_t pid;

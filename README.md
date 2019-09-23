@@ -4,16 +4,23 @@ how to use:
 
 echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
 
-launch: ./DECOY_C4 or ./DECOY_C5
-then: ./C4 DECOY_C4 add_int
-or:   ./C5 DECOY_C5 increment
+
+for a single threaded code, this will replace the add_int func:
+launch  :   ./DECOY_C4
+then    :   ./C4 DECOY_C4 add_int
+
+for replacing the sync code with LOCK prefix instruction, see test.s for example
+launch  :   ./DECOY_C5
+then    :   ./C5 DECOY_C5 increment
 
 This program cannot be used on stripped executable, without the symbol table other mechanisms
-have to be used (knowing the code of the function to be replaced we could pattern matching).
+have to be used (knowing the code of the function (in asm) to be replaced we could pattern matching).
 
 Doc on ELF:
 https://en.wikipedia.org/wiki/Executable_and_Linkable_Format
+
 this command allows to see the file header (and the rest obviously): hexdump -C executable
+
 Doc on libelf:
 ftp://ftp2.uk.freebsd.org/sites/downloads.sourceforge.net/e/el/elftoolchain/Documentation/libelf-by-example/20120308/libelf-by-example.pdf
 compile with the -lelf flag / cmake: add_executable(TARGET files) and target_link_libraries(TARGET elf)
@@ -50,7 +57,7 @@ sudo virsh domifaddr [number_from_the_first_command]
 https://en.wikipedia.org/wiki/X86_instruction_listings
 LOCK is 0xF0
 
-22:26 Saturday 24th, November 2018 : Ok, en essayant de libérer la memoire dans le tas avec un appel a free() je me suis rendu compte
+22:26 Saturday 24th, November 2018 : (Luis) Ok, en essayant de libérer la memoire dans le tas avec un appel a free() je me suis rendu compte
 que cela ne faisait ... rien ! je me suis demandé si cela ne venait pas de mprotect, puis je suis tombé sur un thread SO disant que mmap
 permettait de faire la meme chose que aligned_alloc/posix_memalign et mprotect, puis je me suis dit, tient au lieu de parser la sortie
 de objdump pourquoi pas directement faire un appel systeme, quitte a écrire de l'assembleur autant directement parler avec le noyau !
@@ -59,7 +66,7 @@ au lieu d'utiliser 0xFF 0xD0. Et liberer la memoire avec unmap !
 
 syscalls list : https://filippo.io/linux-syscall-table/
 
-23:24 Saturday 24th, November 2018: Testé et validé, ça fonctionne, mmap et munmap ont les effets désirés, le code est du coup plus court.
+23:24 Saturday 24th, November 2018: (Luis) Testé et validé, ça fonctionne, mmap et munmap ont les effets désirés, le code est du coup plus court.
 en théorie il devrait etre plus rapide puisqu'il y a un seul appel systeme au lieu de 2 appels de fonctions.
 
 utilisation de nm et nm -D a la place d'objdump
