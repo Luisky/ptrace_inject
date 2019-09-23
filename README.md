@@ -4,13 +4,12 @@ how to use:
 
 echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
 
-
-for a single threaded code, this will replace the add_int func:
-launch  :   ./dummy_v1
+for a single threaded code, this will replace the add_int func: \
+launch  :   ./dummy_v1 \
 then    :   ./injector_v1 dummy_v1 add_int
 
-for replacing the sync code with LOCK prefix instruction, see test.s for example
-launch  :   ./dummy_v2
+for replacing the sync code with LOCK prefix instruction, see test.s for example \
+launch  :   ./dummy_v2 \
 then    :   ./injector_v2 dummy_v2 increment
 
 This program cannot be used on stripped executable, without the symbol table other mechanisms
@@ -74,6 +73,6 @@ de objdump pourquoi pas directement faire un appel systeme, quitte a écrire de 
 du coup au boulot, je vais essayer d'appeler mmap en utilisant l'instruction syscall/0x0F 0x05 (https://www.felixcloutier.com/x86/SYSCALL.html)
 au lieu d'utiliser 0xFF 0xD0. Et liberer la memoire avec unmap !
 
-23:24 Saturday 24th, November 2018 : 
+23:24 Saturday 24th, November 2018 :
 Testé et validé, ça fonctionne, mmap et munmap ont les effets désirés, le code est du coup plus court.
 en théorie il devrait etre plus rapide puisqu'il y a un seul appel systeme au lieu de 2 appels de fonctions.
