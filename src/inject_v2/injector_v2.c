@@ -1,4 +1,4 @@
-#include "lib/hotpatchor/hotpatchor.h"
+#include "hotpatchor.h"
 
 /*
  * Could use AS2_TP5 (multithreaded matrix calculations) /home/luisky/CLionProjects/L3_CDA_C/AS2_TP5

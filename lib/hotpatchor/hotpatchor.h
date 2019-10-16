@@ -1,5 +1,5 @@
-#ifndef SEL_TP_HOTPATCHOR_H
-#define SEL_TP_HOTPATCHOR_H
+#ifndef HOTPATCHOR_H
+#define HOTPATCHOR_H
 
 #define _GNU_SOURCE
 
@@ -26,11 +26,11 @@
 
 #define STR_SIZE 256
 
-#define HEAP        "[heap]"
-#define STACK       "[stack]"
-#define VVAR        "[vvar]"
-#define VDSO        "[vsdo]"
-#define VSYSCALL    "[vsyscall]"
+#define HEAP "[heap]"
+#define STACK "[stack]"
+#define VVAR "[vvar]"
+#define VDSO "[vsdo]"
+#define VSYSCALL "[vsyscall]"
 
 /*
  * kill -l
@@ -42,7 +42,8 @@
 
 typedef struct Arg Arg;
 
-struct Arg {
+struct Arg
+{
     struct user_regs_struct user_regs;
     uint64_t func_addr;
     uint64_t allocated_mem;
@@ -62,7 +63,6 @@ union endian32_u { // for endianess
     uint8_t each[4];
 };
 
-
 pid_t get_pid_from_argv(char *argv1);
 void hotwait(pid_t pid);
 
@@ -77,12 +77,12 @@ void hotpatch(pid_t pid, Arg *arg);
 void restore_mem(pid_t pid, Arg *arg);
 
 uint64_t get_addr_from_proc_maps(pid_t pid, char *str, char *lib_path);
-uint64_t get_symbol_offset(char *exec_path, char * sym_name, bool dynamic);
-uint64_t get_func_addr(pid_t pid, char* lib_or_exec, char* func_name, bool dyn);
+uint64_t get_symbol_offset(char *exec_path, char *sym_name, bool dynamic);
+uint64_t get_func_addr(pid_t pid, char *lib_or_exec, char *func_name, bool dyn);
 
 void tid_buf_and_number(pid_t pid, pid_t **tid_buf, size_t *tid_nb);
 
 int challenge3_func(int a, int b);
 void end_challeng3_func();
 
-#endif //SEL_TP_HOTPATCHOR_H
+#endif //HOTPATCHOR_H
